@@ -48,7 +48,7 @@ cd ..
 
 echo.
 echo ====================================
-echo Chatbot is now running!
+echo Chatbot is now running now !
 echo ====================================
 echo Backend:  http://localhost:8000
 echo Frontend: http://localhost:3000

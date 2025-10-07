@@ -75,7 +75,7 @@ API_KEY=your_api_key
 
 #### 3. Ingest Data
 
-Index your documents (or use the example FAQ data):
+Index documents :
 
 ```bash
 python scripts/ingest_data.py

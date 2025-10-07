@@ -7,7 +7,7 @@ echo ""
 
 # Check if .env file exists
 if [ ! -f .env ]; then
-    echo "[ERROR] .env file not found!"
+    echo "[ERROR] .env file not found! Try again"
     echo "Please create a .env file from .env.example and add your ANTHROPIC_API_KEY"
     echo ""
     echo "Run: cp .env.example .env"
