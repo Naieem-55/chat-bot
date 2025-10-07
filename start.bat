@@ -31,7 +31,7 @@ if not exist data\vector_store\faiss_index.bin (
 )
 
 REM Start the backend server
-echo [INFO] Starting backend server on http://localhost:8000
+echo [INFO] Starting backend server on http://localhost:8001
 echo.
 start "Chatbot Backend" cmd /k python run_server.py
 
@@ -39,10 +39,10 @@ REM Wait a moment for the server to start
 timeout /t 3 /nobreak >nul
 
 REM Start the frontend server
-echo [INFO] Starting frontend server on http://localhost:3000
+echo [INFO] Starting frontend server on http://localhost:3001
 echo.
 cd frontend
-start "Chatbot Frontend" cmd /k python -m http.server 3000
+start "Chatbot Frontend" cmd /k python -m http.server 3001
 
 cd ..
 
@@ -50,11 +50,11 @@ echo.
 echo ====================================
 echo Chatbot is now running now !
 echo ====================================
-echo Backend:  http://localhost:8000
-echo Frontend: http://localhost:3000
-echo API Docs: http://localhost:8000/docs
+echo Backend:  http://localhost:8001
+echo Frontend: http://localhost:3001
+echo API Docs: http://localhost:8001/docs
 echo.
-echo Open http://localhost:3000 in your browser
+echo Open http://localhost:3001 in your browser
 echo.
 echo Press Ctrl+C in each terminal window to stop the servers
 echo ====================================

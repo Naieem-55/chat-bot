@@ -132,7 +132,15 @@ async function sendMessage() {
     } catch (error) {
         console.error('Error sending message:', error);
         removeLoading();
-        addBotMessage('Sorry, I encountered an error. Please try again.');
+
+        // Show more detailed error message
+        let errorMessage = 'Sorry, I encountered an error. Please try again.';
+        if (error.message) {
+            errorMessage += ` (${error.message})`;
+            console.error('Error details:', error);
+        }
+
+        addBotMessage(errorMessage);
     } finally {
         // Re-enable input
         messageInput.disabled = false;

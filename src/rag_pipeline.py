@@ -1,9 +1,10 @@
 """Main RAG pipeline orchestration."""
 
-from typing import Dict, Any, List, Generator
+from typing import Dict, Any, List, Generator, Union
 from .vector_store.vector_store_manager import VectorStoreManager
 from .retrieval.retriever import DocumentRetriever
-from .llm.claude_client import ClaudeClient, PromptTemplate
+from .llm.claude_client import ClaudeClient
+from .llm.huggingface_client import HuggingFaceClient, PromptTemplate
 from .session.session_manager import SessionManager
 
 
@@ -13,7 +14,7 @@ class RAGPipeline:
     def __init__(
         self,
         vector_store_manager: VectorStoreManager,
-        claude_client: ClaudeClient,
+        claude_client: Union[ClaudeClient, HuggingFaceClient],
         session_manager: SessionManager,
         top_k_documents: int = 5
     ):
@@ -22,7 +23,7 @@ class RAGPipeline:
 
         Args:
             vector_store_manager: Vector store manager instance
-            claude_client: Claude API client instance
+            claude_client: LLM client instance (Claude or HuggingFace)
             session_manager: Session manager instance
             top_k_documents: Number of documents to retrieve
         """
@@ -30,7 +31,7 @@ class RAGPipeline:
         self.retriever = DocumentRetriever(vector_store_manager, top_k=top_k_documents)
         self.claude_client = claude_client
         self.session_manager = session_manager
-        self.prompt_template = PromptTemplate()
+        self.prompt_template = PromptTemplate
 
     def process_query(
         self,
@@ -66,7 +67,7 @@ class RAGPipeline:
             response_text = self._generate_streaming_response(messages)
         else:
             response_text = self.claude_client.generate_response(
-                system_prompt=self.prompt_template.SYSTEM_PROMPT,
+                system_prompt=PromptTemplate.SYSTEM_PROMPT,
                 messages=messages,
                 stream=False
             )
@@ -113,7 +114,7 @@ class RAGPipeline:
             })
 
         # Add current query with context
-        current_message = self.prompt_template.format_user_query(query, context)
+        current_message = PromptTemplate.format_user_query(query, context)
         messages.append({
             'role': 'user',
             'content': current_message
@@ -127,7 +128,7 @@ class RAGPipeline:
     ) -> Generator[str, None, None]:
         """Generate streaming response."""
         return self.claude_client.generate_response(
-            system_prompt=self.prompt_template.SYSTEM_PROMPT,
+            system_prompt=PromptTemplate.SYSTEM_PROMPT,
             messages=messages,
             stream=True
         )
