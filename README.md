@@ -298,5 +298,3 @@ MIT License - feel free to use for commercial or personal projects
 For issues, questions, or feature requests, please open an issue on GitHub.
 
 ---
-
-**Built with ❤️ using Claude AI**
