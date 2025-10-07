@@ -1,10 +1,10 @@
 # RAG Customer Support Chatbot
 
-A production-ready Retrieval-Augmented Generation (RAG) chatbot powered by Claude AI for customer support.
+A production-ready Retrieval-Augmented Generation (RAG) chatbot powered by for customer support.
 
 ## Features
 
-- 🤖 **Claude AI Integration**: Uses Claude Sonnet for intelligent, context-aware responses
+- 🤖 **AI Integration**: Uses  intelligent context-aware responses
 - 📚 **Vector Search**: FAISS-based semantic search for accurate document retrieval
 - 💬 **Multi-turn Conversations**: Session management for contextual dialogue
 - 🎨 **Modern UI**: Clean, responsive web interface
@@ -14,7 +14,7 @@ A production-ready Retrieval-Augmented Generation (RAG) chatbot powered by Claud
 ## Architecture
 
 ```
-User Query → Embedding → Vector Search → Context Retrieval → Claude API → Response
+User Query → Embedding → Vector Search → Context Retrieval → API → Response
                                                 ↓
                                         Conversation History
 ```
@@ -23,28 +23,57 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 
 ## Quick Start
 
-### 1. Installation
+### 🚀 Easy Start (Recommended)
+
+Run the entire application with a single command:
+
+**Windows:**
+```bash
+start.bat
+```
+
+**Linux/Mac:**
+```bash
+./start.sh
+```
+
+The script will automatically:
+1. Check for `.env` configuration
+2. Run data ingestion (if needed)
+3. Start the backend server (http://localhost:8000)
+4. Start the frontend server (http://localhost:3000)
+5. Open the chatbot in your browser
+
+### 📋 Manual Setup
+
+If you prefer to set up manually:
+
+#### 1. Installation
 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
+#### 2. Configuration
 
 Create a `.env` file from the example:
 
 ```bash
+# Windows
+copy .env.example .env
+
+# Linux/Mac
 cp .env.example .env
 ```
 
-Edit `.env` and add your Claude API key:
+Edit `.env` and add your API key:
 
 ```env
-ANTHROPIC_API_KEY=your_api_key_here
+API_KEY=your_api_key
 ```
 
-### 3. Ingest Data
+#### 3. Ingest Data
 
 Index your documents (or use the example FAQ data):
 
@@ -57,17 +86,17 @@ To add your own documents:
 2. Uncomment the directory loading section in `ingest_data.py`
 3. Run the ingestion script
 
-### 4. Start the Server
+#### 4. Start the Server
 
 ```bash
-# Development mode
-python -m src.api.main
+# Using the provided script
+python run_server.py
 
-# Or with uvicorn
+# Or directly with uvicorn
 uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 5. Open the Chatbot
+#### 5. Open the Chatbot
 
 Open `frontend/index.html` in your browser or serve it with:
 
@@ -111,6 +140,9 @@ chatbot/
 ├── data/
 │   ├── documents/                   # Place your documents here
 │   └── vector_store/                # Vector store data (auto-generated)
+├── start.bat                        # Windows startup script
+├── start.sh                         # Linux/Mac startup script
+├── run_server.py                    # Backend server runner
 ├── requirements.txt                 # Python dependencies
 ├── .env.example                     # Environment variables template
 ├── ARCHITECTURE.md                  # Detailed architecture documentation
@@ -179,8 +211,8 @@ Key configuration options in `.env`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ANTHROPIC_API_KEY` | Claude API key | Required |
-| `CLAUDE_MODEL` | Claude model name | claude-3-5-sonnet-20241022 |
+| `API_KEY` | API key | Required |
+| `MODEL` | model name | ... |
 | `VECTOR_DB_TYPE` | Vector database type | faiss |
 | `TOP_K_DOCUMENTS` | Documents to retrieve | 5 |
 | `CHUNK_SIZE` | Text chunk size | 500 |
@@ -195,8 +227,6 @@ Key configuration options in `.env`:
 3. Run `python scripts/ingest_data.py`
 
 ### Customizing Prompts
-
-Edit `src/llm/claude_client.py`:
 
 ```python
 class PromptTemplate:
@@ -245,40 +275,6 @@ CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - **GPU Acceleration**: Use `faiss-gpu` for faster similarity search
 - **Async Processing**: All I/O operations are async-ready
 
-## Troubleshooting
-
-### Issue: "Module not found" errors
-**Solution**: Ensure you're running from the project root and dependencies are installed
-
-### Issue: Vector store not found
-**Solution**: Run `python scripts/ingest_data.py` to create the vector store
-
-### Issue: CORS errors in frontend
-**Solution**: Update `CORS_ORIGINS` in `.env` to include your frontend URL
-
-### Issue: Claude API errors
-**Solution**: Verify your API key in `.env` and check your API quota
-
-## Example Use Case
-
-**User Query**: "How do I track my order?"
-
-**Pipeline Flow**:
-1. User query is embedded using sentence-transformers
-2. Vector store retrieves top 5 most similar FAQ documents
-3. Retrieved context is formatted with the query
-4. Claude generates a response using the context
-5. Response is sent back to user with source citations
-
-**Response**:
-```
-You can track your order by logging into your account and visiting
-the 'Orders' section. Click on the order number to see detailed
-tracking information. You'll also receive tracking updates via
-email and SMS if you've opted in for notifications.
-
-Sources: Orders (FAQ)
-```
 
 ## Contributing
 
@@ -298,5 +294,3 @@ MIT License - feel free to use for commercial or personal projects
 For issues, questions, or feature requests, please open an issue on GitHub.
 
 ---
-
-**Built with ❤️ using Claude AI**
