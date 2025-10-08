@@ -41,10 +41,10 @@ REM Wait a moment for the server to start
 timeout /t 5 /nobreak >nul
 
 REM Start the frontend server
-echo [INFO] Starting frontend server on http://localhost:3000
+echo [INFO] Starting frontend server on http://localhost:3001
 echo.
 cd frontend
-start "Chatbot Frontend" cmd /k python -m http.server 3000
+start "Chatbot Frontend" cmd /k python -m http.server 3001
 
 cd ..
 
@@ -63,11 +63,11 @@ echo   - Analytics Dashboard
 echo.
 echo Access Points:
 echo   Backend:   http://localhost:8000
-echo   Frontend:  http://localhost:3000
+echo   Frontend:  http://localhost:3001
 echo   API Docs:  http://localhost:8000/docs
-echo   Analytics: http://localhost:3000/analytics.html
+echo   Analytics: http://localhost:3001/analytics.html
 echo.
-echo Open http://localhost:3000 in your browser
+echo Open http://localhost:3001 in your browser
 echo.
 echo Press Ctrl+C in each terminal window to stop the servers
 echo ====================================

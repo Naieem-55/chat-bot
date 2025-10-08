@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Generator, Union
 import logging
 from .vector_store.vector_store_manager import VectorStoreManager
 from .retrieval.retriever import DocumentRetriever
+from .retrieval.bm25_retriever import BM25Retriever
 from .llm.claude_client import ClaudeClient
 from .llm.huggingface_client import HuggingFaceClient, PromptTemplate
 from .session.session_manager import SessionManager
@@ -21,7 +22,8 @@ class RAGPipeline:
         claude_client: Union[ClaudeClient, HuggingFaceClient],
         session_manager: SessionManager,
         top_k_documents: int = 5,
-        use_query_reformulation: bool = True
+        use_query_reformulation: bool = True,
+        use_bm25: bool = True
     ):
         """
         Initialize RAG pipeline.
@@ -32,6 +34,7 @@ class RAGPipeline:
             session_manager: Session manager instance
             top_k_documents: Number of documents to retrieve
             use_query_reformulation: Whether to use query reformulation
+            use_bm25: Whether to use BM25 keyword search in hybrid retrieval
         """
         self.vector_store = vector_store_manager
         self.retriever = DocumentRetriever(vector_store_manager, top_k=top_k_documents)
@@ -39,12 +42,27 @@ class RAGPipeline:
         self.session_manager = session_manager
         self.prompt_template = PromptTemplate
 
-        # Query reformulation
+        # BM25 keyword retrieval
+        self.bm25_retriever = None
+        if use_bm25:
+            try:
+                # Get all documents from vector store for BM25 indexing
+                all_docs = self._get_all_documents()
+                if all_docs:
+                    self.bm25_retriever = BM25Retriever(all_docs, top_k=top_k_documents)
+                    logger.info(f"✓ BM25 keyword search enabled ({len(all_docs)} documents)")
+                else:
+                    logger.warning("No documents available for BM25 indexing")
+            except Exception as e:
+                logger.error(f"Failed to initialize BM25: {e}")
+
+        # Query reformulation with hybrid retrieval
         self.use_query_reformulation = use_query_reformulation
         if use_query_reformulation:
             self.query_reformulator = QueryReformulator(claude_client)
-            self.hybrid_retrieval = HybridRetrieval(self.retriever)
+            self.hybrid_retrieval = HybridRetrieval(self.retriever, self.bm25_retriever)
             logger.info("✓ Query reformulation enabled")
+            logger.info("✓ Hybrid retrieval: Vector (semantic) + BM25 (keyword) + Reformulation")
 
     def process_query(
         self,
@@ -74,14 +92,25 @@ class RAGPipeline:
         else:
             reformulated_query = query
 
-        # Step 3: Retrieve relevant documents (using reformulated query)
+        # Step 3: Retrieve relevant documents with hybrid approach
         if self.use_query_reformulation and reformulated_query != original_query:
-            # Use hybrid retrieval for better results
-            retrieval_results = self.hybrid_retrieval.retrieve_with_reformulation(
+            # Full hybrid: Vector + BM25 + Reformulation
+            retrieval_results = self.hybrid_retrieval.retrieve_full_hybrid(
                 original_query,
-                reformulated_query
+                reformulated_query,
+                vector_weight=0.5,      # Semantic search weight
+                bm25_weight=0.3,        # Keyword search weight
+                reformulation_weight=0.2  # Reformulated query weight
+            )
+        elif self.bm25_retriever:
+            # Hybrid: Vector + BM25 only
+            retrieval_results = self.hybrid_retrieval.retrieve_hybrid(
+                query,
+                vector_weight=0.6,
+                bm25_weight=0.4
             )
         else:
+            # Vector search only
             retrieval_results = self.retriever.retrieve(reformulated_query)
 
         # Step 4: Format context
@@ -178,3 +207,18 @@ class RAGPipeline:
     def clear_session(self, session_id: str) -> bool:
         """Clear a session's history."""
         return self.session_manager.delete_session(session_id)
+
+    def _get_all_documents(self) -> List[Dict]:
+        """
+        Get all documents from vector store for BM25 indexing.
+
+        Returns:
+            List of all documents with metadata
+        """
+        try:
+            # Get all documents from vector store
+            all_docs = self.vector_store.get_all_documents()
+            return all_docs
+        except Exception as e:
+            logger.error(f"Error getting documents for BM25: {e}")
+            return []

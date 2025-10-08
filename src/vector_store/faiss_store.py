@@ -157,3 +157,18 @@ class FAISSVectorStore:
             "embedding_dimension": self.embedding_dimension,
             "index_type": type(self.index).__name__
         }
+
+    def get_all_documents(self) -> List[Dict[str, Any]]:
+        """
+        Get all documents from the vector store for BM25 indexing.
+
+        Returns:
+            List of dictionaries with document content and metadata
+        """
+        result = []
+        for doc in self.documents:
+            result.append({
+                'content': doc.page_content,
+                'metadata': doc.metadata
+            })
+        return result

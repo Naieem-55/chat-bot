@@ -196,16 +196,18 @@ Reformulated: "What is your return policy?"
 
 
 class HybridRetrieval:
-    """Combine original and reformulated queries for better retrieval."""
+    """Combine semantic (vector) and keyword (BM25) retrieval for better results."""
 
-    def __init__(self, retriever):
+    def __init__(self, vector_retriever, bm25_retriever=None):
         """
         Initialize hybrid retrieval.
 
         Args:
-            retriever: Document retriever instance
+            vector_retriever: Semantic vector search retriever
+            bm25_retriever: Keyword BM25 retriever (optional)
         """
-        self.retriever = retriever
+        self.vector_retriever = vector_retriever
+        self.bm25_retriever = bm25_retriever
 
     def retrieve_with_reformulation(
         self,
@@ -227,8 +229,8 @@ class HybridRetrieval:
             Combined and re-ranked documents
         """
         # Retrieve with both queries
-        original_results = self.retriever.retrieve(original_query)
-        reformulated_results = self.retriever.retrieve(reformulated_query)
+        original_results = self.vector_retriever.retrieve(original_query)
+        reformulated_results = self.vector_retriever.retrieve(reformulated_query)
 
         # If queries are the same, just return one set
         if original_query == reformulated_query:
@@ -244,39 +246,132 @@ class HybridRetrieval:
 
         return combined
 
-    def _combine_results(
+    def retrieve_hybrid(
         self,
-        results1: List[Dict],
-        results2: List[Dict],
-        weight1: float,
-        weight2: float
+        query: str,
+        vector_weight: float = 0.6,
+        bm25_weight: float = 0.4
     ) -> List[Dict]:
         """
-        Combine and re-rank results from two queries.
+        Retrieve documents using hybrid semantic + keyword search.
 
-        Uses reciprocal rank fusion for combining results.
+        Args:
+            query: Search query
+            vector_weight: Weight for semantic vector search
+            bm25_weight: Weight for BM25 keyword search
+
+        Returns:
+            Combined and re-ranked documents
         """
-        # Create a scoring dictionary
+        # Get vector search results
+        vector_results = self.vector_retriever.retrieve(query)
+
+        # If no BM25 retriever, return vector results only
+        if not self.bm25_retriever:
+            logger.info("No BM25 retriever available, using vector search only")
+            return vector_results
+
+        # Get BM25 keyword search results
+        bm25_results = self.bm25_retriever.retrieve(query)
+
+        # Combine both result sets
+        combined = self._combine_results(
+            vector_results,
+            bm25_results,
+            vector_weight,
+            bm25_weight
+        )
+
+        logger.info(f"Hybrid retrieval: {len(combined)} documents (vector + BM25)")
+        return combined
+
+    def retrieve_full_hybrid(
+        self,
+        original_query: str,
+        reformulated_query: str,
+        vector_weight: float = 0.5,
+        bm25_weight: float = 0.3,
+        reformulation_weight: float = 0.2
+    ) -> List[Dict]:
+        """
+        Full hybrid retrieval: semantic + keyword + query reformulation.
+
+        Combines three retrieval strategies:
+        1. Semantic vector search on original query
+        2. BM25 keyword search on original query
+        3. Semantic vector search on reformulated query
+
+        Args:
+            original_query: Original user query
+            reformulated_query: Reformulated query with context
+            vector_weight: Weight for semantic search
+            bm25_weight: Weight for keyword search
+            reformulation_weight: Weight for reformulated query
+
+        Returns:
+            Combined and re-ranked documents
+        """
+        results_list = []
+        weights = []
+
+        # 1. Vector search on original query
+        vector_results = self.vector_retriever.retrieve(original_query)
+        results_list.append(vector_results)
+        weights.append(vector_weight)
+
+        # 2. BM25 keyword search (if available)
+        if self.bm25_retriever:
+            bm25_results = self.bm25_retriever.retrieve(original_query)
+            results_list.append(bm25_results)
+            weights.append(bm25_weight)
+
+        # 3. Vector search on reformulated query (if different)
+        if reformulated_query != original_query:
+            reformulated_results = self.vector_retriever.retrieve(reformulated_query)
+            results_list.append(reformulated_results)
+            weights.append(reformulation_weight)
+
+        # Combine all result sets
+        if len(results_list) == 1:
+            return results_list[0]
+        elif len(results_list) == 2:
+            return self._combine_results(results_list[0], results_list[1], weights[0], weights[1])
+        else:
+            return self._combine_multiple_results(results_list, weights)
+
+    def _combine_multiple_results(
+        self,
+        results_list: List[List],
+        weights: List[float]
+    ) -> List:
+        """
+        Combine multiple result sets with different weights.
+
+        Args:
+            results_list: List of result sets (can be tuples or dicts)
+            weights: Corresponding weights for each result set
+
+        Returns:
+            Combined and re-ranked documents
+        """
         scores = {}
-
-        # Score results from first query
-        for rank, doc in enumerate(results1):
-            doc_id = doc['content'][:100]  # Use content prefix as ID
-            rrf_score = 1.0 / (rank + 60)  # Reciprocal rank fusion
-            scores[doc_id] = scores.get(doc_id, 0) + (rrf_score * weight1)
-
-        # Score results from second query
-        for rank, doc in enumerate(results2):
-            doc_id = doc['content'][:100]
-            rrf_score = 1.0 / (rank + 60)
-            scores[doc_id] = scores.get(doc_id, 0) + (rrf_score * weight2)
-
-        # Create document map
         doc_map = {}
-        for doc in results1 + results2:
-            doc_id = doc['content'][:100]
-            if doc_id not in doc_map:
-                doc_map[doc_id] = doc
+
+        for results, weight in zip(results_list, weights):
+            for rank, item in enumerate(results):
+                if isinstance(item, tuple):
+                    doc, _ = item
+                    doc_id = doc.page_content[:100]
+                    doc_map[doc_id] = item
+                else:
+                    doc_id = item['content'][:100]
+                    doc_map[doc_id] = item
+
+                rrf_score = 1.0 / (rank + 60)
+                scores[doc_id] = scores.get(doc_id, 0) + (rrf_score * weight)
+
+                if doc_id not in doc_map:
+                    doc_map[doc_id] = item
 
         # Sort by combined score
         sorted_docs = sorted(
@@ -286,4 +381,61 @@ class HybridRetrieval:
         )
 
         # Return top documents
-        return [doc for _, doc in sorted_docs[:self.retriever.top_k]]
+        top_k = getattr(self.vector_retriever, 'top_k', 5)
+        return [doc for _, doc in sorted_docs[:top_k]]
+
+    def _combine_results(
+        self,
+        results1: List,
+        results2: List,
+        weight1: float,
+        weight2: float
+    ) -> List:
+        """
+        Combine and re-rank results from two queries.
+
+        Uses reciprocal rank fusion for combining results.
+        Args can be either List[Tuple[Document, float]] or List[Dict]
+        """
+        # Create a scoring dictionary
+        scores = {}
+        doc_map = {}
+
+        # Score results from first query
+        for rank, item in enumerate(results1):
+            if isinstance(item, tuple):
+                doc, _ = item
+                doc_id = doc.page_content[:100]  # Use content prefix as ID
+                doc_map[doc_id] = item
+            else:
+                doc_id = item['content'][:100]
+                doc_map[doc_id] = item
+
+            rrf_score = 1.0 / (rank + 60)  # Reciprocal rank fusion
+            scores[doc_id] = scores.get(doc_id, 0) + (rrf_score * weight1)
+
+        # Score results from second query
+        for rank, item in enumerate(results2):
+            if isinstance(item, tuple):
+                doc, _ = item
+                doc_id = doc.page_content[:100]
+                if doc_id not in doc_map:
+                    doc_map[doc_id] = item
+            else:
+                doc_id = item['content'][:100]
+                if doc_id not in doc_map:
+                    doc_map[doc_id] = item
+
+            rrf_score = 1.0 / (rank + 60)
+            scores[doc_id] = scores.get(doc_id, 0) + (rrf_score * weight2)
+
+        # Sort by combined score
+        sorted_docs = sorted(
+            doc_map.items(),
+            key=lambda x: scores.get(x[0], 0),
+            reverse=True
+        )
+
+        # Return top documents
+        top_k = getattr(self.vector_retriever, 'top_k', 5)
+        return [doc for _, doc in sorted_docs[:top_k]]

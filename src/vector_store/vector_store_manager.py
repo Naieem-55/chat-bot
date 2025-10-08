@@ -95,3 +95,14 @@ class VectorStoreManager:
         if hasattr(self.vector_store, 'get_stats'):
             return self.vector_store.get_stats()
         return {}
+
+    def get_all_documents(self):
+        """
+        Get all documents from the vector store.
+
+        Returns:
+            List of all documents with their metadata
+        """
+        if hasattr(self.vector_store, 'get_all_documents'):
+            return self.vector_store.get_all_documents()
+        return []

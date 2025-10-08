@@ -26,11 +26,12 @@ def main():
     documents = load_faq_data()
     print(f"✓ Loaded {len(documents)} FAQ documents")
 
-    # Option B: Load from directory (uncomment to use)
-    # docs_directory = "./data/documents"
-    # if os.path.exists(docs_directory):
-    #     documents.extend(DocumentLoader.load_directory(docs_directory))
-    #     print(f"✓ Loaded documents from {docs_directory}")
+    # Option B: Load from directory
+    docs_directory = "./data/documents"
+    if os.path.exists(docs_directory):
+        additional_docs = DocumentLoader.load_directory(docs_directory)
+        documents.extend(additional_docs)
+        print(f"✓ Loaded {len(additional_docs)} documents from {docs_directory}")
 
     if not documents:
         print("✗ No documents found! Add documents or use FAQ data.")
