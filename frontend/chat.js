@@ -44,10 +44,20 @@ function addUserMessage(message) {
 }
 
 // Add bot message to chat
-function addBotMessage(message, sources = null, messageId = null, messageData = null, hallucinationRisk = null) {
+function addBotMessage(message, sources = null, messageId = null, messageData = null, hallucinationRisk = null, reformulatedQuery = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
     messageDiv.textContent = message;
+
+    // Add query reformulation notice if query was reformulated
+    if (reformulatedQuery) {
+        const reformulationDiv = document.createElement('div');
+        reformulationDiv.className = 'reformulation-notice';
+        reformulationDiv.innerHTML = `
+            🔄 <small>Interpreted as: "${reformulatedQuery}"</small>
+        `;
+        messageDiv.insertBefore(reformulationDiv, messageDiv.firstChild);
+    }
 
     // Add hallucination warning if detected
     if (hallucinationRisk && hallucinationRisk.detected) {
@@ -213,7 +223,8 @@ async function sendMessage() {
             data.sources,
             data.message_id,
             messageData,
-            data.hallucination_risk
+            data.hallucination_risk,
+            data.reformulated_query
         );
 
     } catch (error) {

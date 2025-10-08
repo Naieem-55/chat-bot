@@ -1,0 +1,10 @@
+{
+  "total_feedback": 2,
+  "positive_count": 2,
+  "negative_count": 0,
+  "positive_rate": 1.0,
+  "hallucination_count": 0,
+  "hallucination_rate": 0.0,
+  "context_usage_rate": 1.0,
+  "common_hallucination_reasons": {}
+}

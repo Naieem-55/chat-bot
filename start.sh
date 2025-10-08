@@ -2,6 +2,7 @@
 
 echo "===================================="
 echo "RAG Customer Support Chatbot"
+echo "Advanced AI with Query Reformulation"
 echo "===================================="
 echo ""
 
@@ -16,7 +17,7 @@ if [ ! -f .env ]; then
 fi
 
 # Check if vector store exists
-if [ ! -f data/vector_store/faiss_index.bin ]; then
+if [ ! -f data/vector_store/index.faiss ]; then
     echo "[INFO] Vector store not found. Running data ingestion..."
     echo ""
     python scripts/ingest_data.py
@@ -48,9 +49,20 @@ echo ""
 echo "===================================="
 echo "Chatbot is now running!"
 echo "===================================="
-echo "Backend:  http://localhost:8000"
-echo "Frontend: http://localhost:3000"
-echo "API Docs: http://localhost:8000/docs"
+echo ""
+echo "Features Enabled:"
+echo "  - Llama 3.3 70B (Best Quality LLM)"
+echo "  - BGE Embeddings (768D Vectors)"
+echo "  - Query Reformulation"
+echo "  - Hallucination Detection"
+echo "  - Real-time Feedback"
+echo "  - Analytics Dashboard"
+echo ""
+echo "Access Points:"
+echo "  Backend:   http://localhost:8000"
+echo "  Frontend:  http://localhost:3000"
+echo "  API Docs:  http://localhost:8000/docs"
+echo "  Analytics: http://localhost:3000/analytics.html"
 echo ""
 echo "Open http://localhost:3000 in your browser"
 echo ""

@@ -1,6 +1,8 @@
 @echo off
+cls
 echo ====================================
 echo RAG Customer Support Chatbot
+echo Advanced AI with Query Reformulation
 echo ====================================
 echo.
 
@@ -16,7 +18,7 @@ if not exist .env (
 )
 
 REM Check if vector store exists
-if not exist data\vector_store\faiss_index.bin (
+if not exist data\vector_store\index.faiss (
     echo [INFO] Vector store not found. Running data ingestion...
     echo.
     python scripts\ingest_data.py
@@ -31,30 +33,41 @@ if not exist data\vector_store\faiss_index.bin (
 )
 
 REM Start the backend server
-echo [INFO] Starting backend server on http://localhost:8001
+echo [INFO] Starting backend server on http://localhost:8000
 echo.
 start "Chatbot Backend" cmd /k python run_server.py
 
 REM Wait a moment for the server to start
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 REM Start the frontend server
-echo [INFO] Starting frontend server on http://localhost:3001
+echo [INFO] Starting frontend server on http://localhost:3000
 echo.
 cd frontend
-start "Chatbot Frontend" cmd /k python -m http.server 3001
+start "Chatbot Frontend" cmd /k python -m http.server 3000
 
 cd ..
 
 echo.
 echo ====================================
-echo Chatbot is now running now !
+echo Chatbot is now running!
 echo ====================================
-echo Backend:  http://localhost:8001
-echo Frontend: http://localhost:3001
-echo API Docs: http://localhost:8001/docs
 echo.
-echo Open http://localhost:3001 in your browser
+echo Features Enabled:
+echo   - Llama 3.3 70B (Best Quality LLM)
+echo   - BGE Embeddings (768D Vectors)
+echo   - Query Reformulation
+echo   - Hallucination Detection
+echo   - Real-time Feedback
+echo   - Analytics Dashboard
+echo.
+echo Access Points:
+echo   Backend:   http://localhost:8000
+echo   Frontend:  http://localhost:3000
+echo   API Docs:  http://localhost:8000/docs
+echo   Analytics: http://localhost:3000/analytics.html
+echo.
+echo Open http://localhost:3000 in your browser
 echo.
 echo Press Ctrl+C in each terminal window to stop the servers
 echo ====================================

@@ -227,6 +227,22 @@ body {
     font-weight: normal;
 }
 
+/* Query reformulation notice */
+.reformulation-notice {
+    background: rgba(52, 152, 219, 0.1);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    color: #3498db;
+    font-size: 12px;
+    font-style: italic;
+}
+
+.reformulation-notice small {
+    color: #2980b9;
+}
+
 .chat-input-container {
     display: flex;
     padding: 20px 24px;
