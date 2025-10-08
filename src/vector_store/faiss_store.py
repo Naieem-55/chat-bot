@@ -26,7 +26,8 @@ class FAISSVectorStore:
         self.document_embeddings: np.ndarray = None
 
         # Initialize or load index
-        if index_path and os.path.exists(index_path):
+        index_file = os.path.join(index_path, "index.faiss") if index_path else None
+        if index_file and os.path.exists(index_file):
             self.load()
         else:
             self.index = faiss.IndexFlatL2(embedding_dimension)
