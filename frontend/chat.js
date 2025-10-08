@@ -44,10 +44,21 @@ function addUserMessage(message) {
 }
 
 // Add bot message to chat
-function addBotMessage(message, sources = null) {
+function addBotMessage(message, sources = null, messageId = null, messageData = null, hallucinationRisk = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
     messageDiv.textContent = message;
+
+    // Add hallucination warning if detected
+    if (hallucinationRisk && hallucinationRisk.detected) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'hallucination-warning';
+        warningDiv.innerHTML = `
+            ⚠️ <strong>${hallucinationRisk.risk_level}</strong> of Hallucination
+            <small>(Confidence: ${(hallucinationRisk.confidence_score * 100).toFixed(0)}%)</small>
+        `;
+        messageDiv.insertBefore(warningDiv, messageDiv.firstChild);
+    }
 
     // Add sources if available
     if (sources && sources.length > 0) {
@@ -59,10 +70,41 @@ function addBotMessage(message, sources = null) {
             const badge = document.createElement('span');
             badge.className = 'source-badge';
             badge.textContent = source.category || source.source;
+            badge.title = `Relevance: ${(source.relevance_score * 100).toFixed(0)}%`;
             sourcesDiv.appendChild(badge);
         });
 
         messageDiv.appendChild(sourcesDiv);
+    }
+
+    // Add feedback buttons if messageId is provided
+    if (messageId && messageData) {
+        const feedbackDiv = document.createElement('div');
+        feedbackDiv.className = 'feedback-buttons';
+        feedbackDiv.innerHTML = `
+            <button class="feedback-btn thumbs-up" data-message-id="${messageId}" data-feedback="positive" title="Helpful response">
+                👍
+            </button>
+            <button class="feedback-btn thumbs-down" data-message-id="${messageId}" data-feedback="negative" title="Not helpful">
+                👎
+            </button>
+        `;
+
+        // Add click handlers
+        feedbackDiv.querySelectorAll('.feedback-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const feedback = e.target.dataset.feedback;
+                const msgId = e.target.dataset.messageId;
+                await submitFeedback(msgId, feedback, messageData);
+
+                // Visual feedback
+                feedbackDiv.querySelectorAll('.feedback-btn').forEach(b => b.classList.remove('selected'));
+                e.target.classList.add('selected');
+                e.target.disabled = true;
+            });
+        });
+
+        messageDiv.appendChild(feedbackDiv);
     }
 
     chatMessages.appendChild(messageDiv);
@@ -87,6 +129,35 @@ function removeLoading() {
 // Scroll to bottom of chat
 function scrollToBottom() {
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Submit feedback
+async function submitFeedback(messageId, feedback, messageData) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/feedback`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message_id: messageId,
+                session_id: messageData.session_id,
+                user_query: messageData.user_query,
+                bot_response: messageData.response,
+                feedback: feedback,
+                sources: messageData.sources,
+                context_used: messageData.context_used
+            })
+        });
+
+        if (response.ok) {
+            console.log('Feedback submitted successfully');
+        } else {
+            console.error('Failed to submit feedback');
+        }
+    } catch (error) {
+        console.error('Error submitting feedback:', error);
+    }
 }
 
 // Send message to API
@@ -125,9 +196,25 @@ async function sendMessage() {
 
         const data = await response.json();
 
-        // Remove loading and add bot response
+        // Remove loading and add bot response with feedback buttons
         removeLoading();
-        addBotMessage(data.response, data.sources);
+
+        // Prepare message data for feedback
+        const messageData = {
+            user_query: message,
+            response: data.response,
+            session_id: data.session_id,
+            sources: data.sources,
+            context_used: data.context_used
+        };
+
+        addBotMessage(
+            data.response,
+            data.sources,
+            data.message_id,
+            messageData,
+            data.hallucination_risk
+        );
 
     } catch (error) {
         console.error('Error sending message:', error);

@@ -13,6 +13,9 @@ from ..llm.claude_client import ClaudeClient
 from ..llm.huggingface_client import HuggingFaceClient
 from ..session.session_manager import SessionManager
 from ..rag_pipeline import RAGPipeline
+from ..feedback.feedback_manager import FeedbackManager
+from ..feedback.hallucination_detector import HallucinationDetector
+import uuid
 
 # Setup logging
 logging.basicConfig(level=settings.log_level)
@@ -36,6 +39,8 @@ app.add_middleware(
 
 # Global instances (initialized on startup)
 rag_pipeline: Optional[RAGPipeline] = None
+feedback_manager: Optional[FeedbackManager] = None
+hallucination_detector: Optional[HallucinationDetector] = None
 
 
 # Pydantic models
@@ -50,8 +55,10 @@ class ChatResponse(BaseModel):
     """Chat response model."""
     response: str
     session_id: str
+    message_id: str
     sources: List[Dict[str, Any]]
     context_used: bool
+    hallucination_risk: Optional[Dict[str, Any]] = None
 
 
 class SessionCreateResponse(BaseModel):
@@ -68,7 +75,7 @@ class HealthResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize components on startup."""
-    global rag_pipeline
+    global rag_pipeline, feedback_manager, hallucination_detector
 
     logger.info("Initializing RAG pipeline...")
 
@@ -113,7 +120,14 @@ async def startup_event():
             top_k_documents=settings.top_k_documents
         )
 
+        # Initialize feedback manager
+        feedback_manager = FeedbackManager()
+
+        # Initialize hallucination detector
+        hallucination_detector = HallucinationDetector()
+
         logger.info("✓ RAG pipeline initialized successfully")
+        logger.info("✓ Feedback system initialized")
 
     except Exception as e:
         logger.error(f"Failed to initialize RAG pipeline: {str(e)}")
@@ -188,7 +202,30 @@ async def chat(request: ChatRequest):
             stream=False
         )
 
-        return ChatResponse(**result)
+        # Generate unique message ID
+        message_id = str(uuid.uuid4())
+
+        # Detect hallucinations
+        is_hallucination, reasons, score = hallucination_detector.detect(
+            response=result['response'],
+            query=request.message,
+            sources=result['sources'],
+            context_used=result['context_used']
+        )
+
+        # Add hallucination risk to response
+        hallucination_risk = {
+            'detected': is_hallucination,
+            'confidence_score': round(score, 3),
+            'risk_level': hallucination_detector.get_confidence_label(score),
+            'reasons': reasons
+        } if score > 0.3 else None  # Only show if medium risk or higher
+
+        return ChatResponse(
+            message_id=message_id,
+            hallucination_risk=hallucination_risk,
+            **result
+        )
 
     except Exception as e:
         import traceback
@@ -223,6 +260,134 @@ async def delete_session(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
 
     return {"message": "Session deleted successfully"}
+
+
+# Feedback endpoints
+class FeedbackRequest(BaseModel):
+    """Feedback request model."""
+    message_id: str
+    session_id: str
+    user_query: str
+    bot_response: str
+    feedback: str  # 'positive' or 'negative'
+    sources: List[Dict[str, Any]]
+    context_used: bool
+
+
+@app.post("/feedback")
+async def submit_feedback(request: FeedbackRequest):
+    """
+    Submit feedback for a chatbot response.
+
+    Args:
+        request: Feedback data
+
+    Returns:
+        Confirmation with feedback stats
+    """
+    if not feedback_manager or not hallucination_detector:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+
+    try:
+        # Re-run hallucination detection
+        is_hallucination, reasons, score = hallucination_detector.detect(
+            response=request.bot_response,
+            query=request.user_query,
+            sources=request.sources,
+            context_used=request.context_used
+        )
+
+        # Store feedback
+        feedback_entry = feedback_manager.add_feedback(
+            message_id=request.message_id,
+            session_id=request.session_id,
+            user_query=request.user_query,
+            bot_response=request.bot_response,
+            feedback=request.feedback,
+            sources=request.sources,
+            context_used=request.context_used,
+            hallucination_detected=is_hallucination,
+            hallucination_reasons=reasons
+        )
+
+        return {
+            "message": "Feedback recorded successfully",
+            "feedback_id": request.message_id,
+            "stats": feedback_manager.get_stats()
+        }
+
+    except Exception as e:
+        logger.error(f"Error recording feedback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/feedback/stats")
+async def get_feedback_stats():
+    """Get feedback statistics."""
+    if not feedback_manager:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+
+    return feedback_manager.get_stats()
+
+
+@app.get("/feedback/problematic-queries")
+async def get_problematic_queries(min_negative_rate: float = 0.5):
+    """
+    Get queries that frequently receive negative feedback.
+
+    Args:
+        min_negative_rate: Minimum negative feedback rate (0.0-1.0)
+
+    Returns:
+        List of problematic queries
+    """
+    if not feedback_manager:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+
+    return {
+        "problematic_queries": feedback_manager.get_problematic_queries(min_negative_rate)
+    }
+
+
+@app.get("/feedback/hallucinations")
+async def get_hallucinations():
+    """Get all responses marked as potential hallucinations."""
+    if not feedback_manager:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+
+    hallucinations = feedback_manager.get_hallucinations()
+
+    return {
+        "total_hallucinations": len(hallucinations),
+        "hallucinations": [
+            {
+                "message_id": h.message_id,
+                "user_query": h.user_query,
+                "bot_response": h.bot_response[:200] + "..." if len(h.bot_response) > 200 else h.bot_response,
+                "feedback": h.feedback,
+                "reasons": h.hallucination_reasons,
+                "timestamp": h.timestamp.isoformat()
+            }
+            for h in hallucinations[-50:]  # Last 50
+        ]
+    }
+
+
+@app.get("/feedback/export")
+async def export_feedback():
+    """Export all feedback data."""
+    if not feedback_manager:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+
+    try:
+        export_path = feedback_manager.export_feedback()
+        return {
+            "message": "Feedback exported successfully",
+            "export_path": export_path
+        }
+    except Exception as e:
+        logger.error(f"Error exporting feedback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

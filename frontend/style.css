@@ -34,6 +34,23 @@ body {
     padding: 24px 28px;
     border-radius: 12px 12px 0 0;
     border-bottom: 1px solid #2a2a2a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.analytics-link {
+    font-size: 24px;
+    text-decoration: none;
+    opacity: 0.6;
+    transition: all 0.2s;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.analytics-link:hover {
+    opacity: 1;
+    background: #2a2a2a;
 }
 
 .chat-header h2 {
@@ -137,6 +154,77 @@ body {
     font-weight: 500;
     font-size: 11px;
     border: 1px solid #3a3a3a;
+    cursor: help;
+}
+
+/* Feedback buttons */
+.feedback-buttons {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #3a3a3a;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.feedback-btn {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    color: #a0a0a0;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.feedback-btn:hover:not(:disabled) {
+    background: #353535;
+    border-color: #4a4a4a;
+    transform: translateY(-1px);
+}
+
+.feedback-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.feedback-btn.selected.thumbs-up {
+    background: #1a4d2e;
+    border-color: #27ae60;
+    color: #27ae60;
+}
+
+.feedback-btn.selected.thumbs-down {
+    background: #4d1a1a;
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+
+.feedback-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Hallucination warning */
+.hallucination-warning {
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    color: #e74c3c;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hallucination-warning small {
+    color: #c0392b;
+    font-weight: normal;
 }
 
 .chat-input-container {
