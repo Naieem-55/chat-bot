@@ -254,12 +254,42 @@ function formatMessage(text) {
         p = p.trim();
         if (!p) return '';
 
+        // Check if paragraph contains heading + text (e.g., "## Heading\ntext...")
+        // Split heading from content if they're in same chunk
+        let result = '';
+
         // Handle headings (## or ###)
         if (p.startsWith('###')) {
-            return `<h4 class="response-heading">${p.substring(3).trim()}</h4>`;
+            const lines = p.split('\n');
+            const heading = lines[0];
+            const rest = lines.slice(1).join('\n').trim();
+            result = `<h4 class="response-heading">${heading.substring(3).trim()}</h4>`;
+            if (rest) {
+                result += `<p>${rest}</p>`;
+            }
+            return result;
         }
         if (p.startsWith('##')) {
-            return `<h3 class="response-heading">${p.substring(2).trim()}</h3>`;
+            const lines = p.split('\n');
+            const heading = lines[0];
+            const rest = lines.slice(1).join('\n').trim();
+            result = `<h3 class="response-heading">${heading.substring(2).trim()}</h3>`;
+            if (rest) {
+                // Check if rest contains bullets - if so, process as list
+                if (rest.includes('\n*') || rest.startsWith('*')) {
+                    const restLines = rest.split('\n');
+                    const listItems = restLines
+                        .filter(line => line.trim().startsWith('*'))
+                        .map(line => `<li>${line.trim().substring(1).trim()}</li>`)
+                        .join('');
+                    if (listItems) {
+                        result += `<ul class="formatted-list">${listItems}</ul>`;
+                    }
+                } else {
+                    result += `<p>${rest}</p>`;
+                }
+            }
+            return result;
         }
 
         // Handle bold text (**text**)

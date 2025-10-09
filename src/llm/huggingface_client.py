@@ -47,7 +47,13 @@ class HuggingFaceClient:
         """
         import re
 
-        # If already has proper paragraph breaks, return as-is
+        # FIRST: Clean up malformed paragraph breaks from LLM
+        # LLM sometimes outputs "\n\n \n" instead of "\n\n"
+        text = re.sub(r'\n\n\s+\n', '\n\n', text)  # Remove "\n\n \n" → "\n\n"
+        text = re.sub(r'\n{3,}', '\n\n', text)      # Remove 3+ newlines → "\n\n"
+        text = text.strip()
+
+        # If already has proper paragraph breaks, return cleaned version
         if '\n\n' in text and text.count('\n\n') >= 2:
             return text
 

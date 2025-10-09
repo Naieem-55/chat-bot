@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Paragraph Spacing</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            padding: 40px;
+            background: #0f0f0f;
+        }
+        .test-box {
+            background: #252525;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            max-width: 700px;
+            margin: 20px auto;
+        }
+        h2 {
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+        .label {
+            color: #808080;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-box">
+        <h2>Paragraph Spacing Test</h2>
+        <div class="label">This should show 4 separate paragraphs with visible spacing:</div>
+        <div class="message-content" id="test"></div>
+    </div>
+
+    <script src="chat.js"></script>
+    <script>
+        // Test response with \n\n
+        const testText = `HTML stands for Hyper Text Markup Language and is the standard markup language for creating Web pages.
+
+HTML is a fundamental aspect of the Web, defining the meaning and structure of web content.
+
+### Key Features
+* HTML describes structure
+* HTML uses elements
+* HTML is standardized
+
+For more information, refer to online resources.`;
+
+        // Use the formatMessage function from chat.js
+        document.getElementById('test').innerHTML = formatMessage(testText);
+
+        // Log the result
+        console.log('=== FORMATTED HTML ===');
+        console.log(document.getElementById('test').innerHTML);
+    </script>
+</body>
+</html>
