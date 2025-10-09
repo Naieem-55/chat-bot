@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Formatting</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            padding: 40px;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-response {
+            background: #252525;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+        .raw-text {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #2a2a2a;
+            color: #808080;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h2>Formatting Test</h2>
+
+        <div class="test-response">
+            <h3 style="color: #ffffff;">Raw Response (from API):</h3>
+            <div class="raw-text" id="rawText"></div>
+
+            <h3 style="color: #ffffff;">Formatted Display:</h3>
+            <div class="message-content" id="formattedText"></div>
+        </div>
+    </div>
+
+    <script>
+        // Copy formatMessage function from chat.js
+        function formatMessage(text) {
+            if (!text) return '';
+
+            // Clean up extra whitespace and normalize newlines
+            text = text.replace(/\n\n\s+\n/g, '\n\n'); // Remove lines with only spaces
+            text = text.replace(/\n{3,}/g, '\n\n'); // Replace 3+ newlines with 2
+
+            // Split into paragraphs
+            let paragraphs = text.split('\n\n');
+
+            // Format each paragraph
+            paragraphs = paragraphs.map(p => {
+                p = p.trim();
+                if (!p) return '';
+
+                // Handle headings (## or ###)
+                if (p.startsWith('###')) {
+                    return `<h4 class="response-heading">${p.substring(3).trim()}</h4>`;
+                }
+                if (p.startsWith('##')) {
+                    return `<h3 class="response-heading">${p.substring(2).trim()}</h3>`;
+                }
+
+                // Handle bold text (**text**)
+                p = p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+                // Handle numbered lists
+                if (p.includes('\n1.') || p.startsWith('1.')) {
+                    const lines = p.split('\n');
+                    const listItems = [];
+                    let regularText = '';
+
+                    lines.forEach(line => {
+                        line = line.trim();
+                        const numberedMatch = line.match(/^(\d+)\.\s+(.+)/);
+                        if (numberedMatch) {
+                            if (regularText) {
+                                listItems.push(`<p>${regularText}</p>`);
+                                regularText = '';
+                            }
+                            listItems.push(`<li>${numberedMatch[2]}</li>`);
+                        } else if (line) {
+                            regularText += (regularText ? ' ' : '') + line;
+                        }
+                    });
+
+                    if (regularText) {
+                        listItems.push(`<p>${regularText}</p>`);
+                    }
+
+                    const listContent = listItems.filter(item => item.startsWith('<li>')).join('');
+                    const textContent = listItems.filter(item => item.startsWith('<p>')).join('');
+
+                    if (listContent) {
+                        return textContent + `<ol class="formatted-list">${listContent}</ol>`;
+                    }
+                    return textContent;
+                }
+
+                // Handle bullet points
+                if (p.includes('\n*') || p.includes('\n-') || p.startsWith('*') || p.startsWith('-')) {
+                    const lines = p.split('\n');
+                    const listItems = [];
+                    let regularText = '';
+
+                    lines.forEach(line => {
+                        line = line.trim();
+                        if (line.startsWith('*') || line.startsWith('-')) {
+                            if (regularText) {
+                                listItems.push(`<p>${regularText}</p>`);
+                                regularText = '';
+                            }
+                            // Remove bold markdown from list items
+                            let itemText = line.substring(1).trim();
+                            itemText = itemText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                            listItems.push(`<li>${itemText}</li>`);
+                        } else if (line) {
+                            regularText += (regularText ? ' ' : '') + line;
+                        }
+                    });
+
+                    if (regularText) {
+                        listItems.push(`<p>${regularText}</p>`);
+                    }
+
+                    const listContent = listItems.filter(item => item.startsWith('<li>')).join('');
+                    const textContent = listItems.filter(item => item.startsWith('<p>')).join('');
+
+                    if (listContent) {
+                        return textContent + `<ul class="formatted-list">${listContent}</ul>`;
+                    }
+                    return textContent;
+                }
+
+                // Regular paragraph
+                return `<p>${p}</p>`;
+            });
+
+            return paragraphs.join('');
+        }
+
+        // Test with actual response from API
+        const testResponse = `HTML stands for Hyper Text Markup Language and is the standard markup language for creating Web pages. It describes the structure of a Web page and consists of a series of elements that tell the browser how to display the content.
+
+
+HTML is a fundamental aspect of the Web, defining the meaning and structure of web content. It is used to annotate text, images, and other content for display in a Web browser, and it allows for the creation of links that connect web pages to one another.
+
+
+### Key Features of HTML:
+* HTML describes the structure of a Web page
+* HTML elements label pieces of content such as headings, paragraphs, and links
+* HTML consists of a series of elements that tell the browser how to display the content
+* HTML uses start tags and end tags to define elements
+
+
+For more detailed information about HTML, including its basic syntax and elements, we recommend checking out the HTML tutorial resources available online. If you have any specific questions about HTML, feel free to ask!`;
+
+        // Display raw and formatted
+        document.getElementById('rawText').textContent = testResponse;
+        document.getElementById('formattedText').innerHTML = formatMessage(testResponse);
+    </script>
+</body>
+</html>
