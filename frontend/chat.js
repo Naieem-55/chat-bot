@@ -537,6 +537,139 @@ function createStreamingMessage() {
     return { messageDiv, contentDiv };
 }
 
+// Add context-based emojis to response (like ChatGPT)
+function addContextEmojis(text) {
+    // Emoji mappings based on context
+    const emojiPatterns = [
+        // Greetings & Positivity
+        { pattern: /\b(hello|hi|hey|greetings)\b/gi, emoji: '👋', position: 'before' },
+        { pattern: /\b(welcome|glad|happy|great|excellent|perfect|awesome)\b/gi, emoji: '😊', position: 'after' },
+        { pattern: /\b(congratulations|congrats)\b/gi, emoji: '🎉', position: 'after' },
+        { pattern: /\b(thank you|thanks)\b/gi, emoji: '🙏', position: 'after' },
+
+        // Learning & Education
+        { pattern: /\b(learn|study|tutorial|guide|course)\b/gi, emoji: '📚', position: 'after' },
+        { pattern: /\b(tip|tips|trick|tricks|hack|hacks)\b/gi, emoji: '💡', position: 'before' },
+        { pattern: /\b(important|note|remember|key point)\b/gi, emoji: '⚠️', position: 'before' },
+        { pattern: /\b(example|examples|instance)\b/gi, emoji: '📝', position: 'before' },
+
+        // Technology & Code
+        { pattern: /\b(code|coding|programming|development)\b/gi, emoji: '💻', position: 'after' },
+        { pattern: /\b(bug|error|issue|problem)\b/gi, emoji: '🐛', position: 'after' },
+        { pattern: /\b(fix|fixed|solution|resolve)\b/gi, emoji: '✅', position: 'after' },
+        { pattern: /\b(api|endpoint|server)\b/gi, emoji: '⚙️', position: 'after' },
+        { pattern: /\b(database|data|storage)\b/gi, emoji: '💾', position: 'after' },
+
+        // Success & Achievement
+        { pattern: /\b(success|successful|achieved|completed)\b/gi, emoji: '✨', position: 'after' },
+        { pattern: /\b(done|finished|ready)\b/gi, emoji: '✔️', position: 'after' },
+        { pattern: /\b(winner|win|victory)\b/gi, emoji: '🏆', position: 'after' },
+
+        // Security & Safety
+        { pattern: /\b(security|secure|safe|protected)\b/gi, emoji: '🔒', position: 'after' },
+        { pattern: /\b(warning|danger|caution|careful)\b/gi, emoji: '⚠️', position: 'before' },
+
+        // Time & Speed
+        { pattern: /\b(fast|quick|speed|rapid)\b/gi, emoji: '⚡', position: 'after' },
+        { pattern: /\b(slow|wait|patience)\b/gi, emoji: '⏱️', position: 'after' },
+        { pattern: /\b(new|latest|modern|recent)\b/gi, emoji: '🆕', position: 'after' },
+
+        // Communication
+        { pattern: /\b(message|chat|communication|talk)\b/gi, emoji: '💬', position: 'after' },
+        { pattern: /\b(email|mail)\b/gi, emoji: '📧', position: 'after' },
+        { pattern: /\b(phone|call|mobile)\b/gi, emoji: '📱', position: 'after' },
+
+        // Money & Business
+        { pattern: /\b(money|price|cost|payment)\b/gi, emoji: '💰', position: 'after' },
+        { pattern: /\b(business|company|enterprise)\b/gi, emoji: '💼', position: 'after' },
+        { pattern: /\b(growth|increase|profit)\b/gi, emoji: '📈', position: 'after' },
+
+        // Location & Travel
+        { pattern: /\b(home|house)\b/gi, emoji: '🏠', position: 'after' },
+        { pattern: /\b(travel|trip|journey)\b/gi, emoji: '✈️', position: 'after' },
+        { pattern: /\b(location|place|address)\b/gi, emoji: '📍', position: 'after' },
+
+        // Weather & Nature
+        { pattern: /\b(sun|sunny|sunshine)\b/gi, emoji: '☀️', position: 'after' },
+        { pattern: /\b(rain|rainy)\b/gi, emoji: '🌧️', position: 'after' },
+        { pattern: /\b(tree|forest|nature)\b/gi, emoji: '🌳', position: 'after' },
+        { pattern: /\b(flower|plant)\b/gi, emoji: '🌸', position: 'after' },
+
+        // Food & Drink
+        { pattern: /\b(food|eat|meal)\b/gi, emoji: '🍽️', position: 'after' },
+        { pattern: /\b(coffee|cafe)\b/gi, emoji: '☕', position: 'after' },
+        { pattern: /\b(pizza)\b/gi, emoji: '🍕', position: 'after' },
+
+        // Entertainment
+        { pattern: /\b(music|song|audio)\b/gi, emoji: '🎵', position: 'after' },
+        { pattern: /\b(video|film|movie)\b/gi, emoji: '🎬', position: 'after' },
+        { pattern: /\b(game|gaming|play)\b/gi, emoji: '🎮', position: 'after' },
+        { pattern: /\b(book|read|reading)\b/gi, emoji: '📖', position: 'after' },
+
+        // Emotions & Reactions
+        { pattern: /\b(love|like|favorite)\b/gi, emoji: '❤️', position: 'after' },
+        { pattern: /\b(sad|sorry|unfortunately)\b/gi, emoji: '😔', position: 'after' },
+        { pattern: /\b(laugh|funny|joke)\b/gi, emoji: '😄', position: 'after' },
+        { pattern: /\b(think|thought|idea)\b/gi, emoji: '💭', position: 'after' },
+
+        // Questions & Help
+        { pattern: /\b(question|ask|wondering)\b/gi, emoji: '❓', position: 'after' },
+        { pattern: /\b(help|assist|support)\b/gi, emoji: '🤝', position: 'after' },
+        { pattern: /\b(search|find|look)\b/gi, emoji: '🔍', position: 'after' },
+    ];
+
+    // Track processed words by their position to prevent duplicates
+    const processedWords = new Map(); // word -> count of times we've added emoji
+    let result = text;
+
+    // Collect all potential emoji insertions with their positions
+    const insertions = [];
+
+    emojiPatterns.forEach(({ pattern, emoji, position }) => {
+        let match;
+        const regex = new RegExp(pattern.source, pattern.flags);
+
+        while ((match = regex.exec(text)) !== null) {
+            const word = match[0].toLowerCase();
+            const index = match.index;
+
+            // Track how many times this word appears and limit emoji to first 1-2 occurrences
+            const wordKey = `${word}-${emoji}`;
+            const count = processedWords.get(wordKey) || 0;
+
+            // Only add emoji to first occurrence of each word in entire text
+            if (count === 0) {
+                insertions.push({
+                    index: index,
+                    word: match[0],
+                    emoji: emoji,
+                    position: position,
+                    wordKey: wordKey
+                });
+                processedWords.set(wordKey, count + 1);
+            }
+        }
+    });
+
+    // Sort insertions by index (reverse order for correct string manipulation)
+    insertions.sort((a, b) => b.index - a.index);
+
+    // Apply insertions from end to beginning (to preserve indices)
+    insertions.forEach(insertion => {
+        const beforeText = result.substring(0, insertion.index);
+        const matchedWord = result.substring(insertion.index, insertion.index + insertion.word.length);
+        const afterText = result.substring(insertion.index + insertion.word.length);
+
+        if (insertion.position === 'before') {
+            result = beforeText + insertion.emoji + ' ' + matchedWord + afterText;
+        } else {
+            result = beforeText + matchedWord + ' ' + insertion.emoji + afterText;
+        }
+    });
+
+    return result;
+}
+
 // Stream text with typing effect (word by word - smoother, less flickering)
 async function streamText(contentDiv, text, speed = 50) {
     // Create a plain text container for streaming
@@ -677,10 +810,13 @@ async function sendMessage() {
             messageDiv.insertBefore(reformulationDiv, contentDiv);
         }
 
-        // Stream the response with typing effect (word by word)
-        await streamText(contentDiv, data.response, 50);
+        // Add context-based emojis to response
+        const enhancedResponse = addContextEmojis(data.response);
 
-        // Speak the response if voice mode is enabled
+        // Stream the response with typing effect (word by word)
+        await streamText(contentDiv, enhancedResponse, 50);
+
+        // Speak the response if voice mode is enabled (use original text without emojis for speech)
         speakText(data.response);
 
         // Add sources after streaming completes
