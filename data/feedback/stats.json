@@ -1,8 +1,8 @@
 {
-  "total_feedback": 4,
-  "positive_count": 3,
+  "total_feedback": 5,
+  "positive_count": 4,
   "negative_count": 1,
-  "positive_rate": 0.75,
+  "positive_rate": 0.8,
   "hallucination_count": 0,
   "hallucination_rate": 0.0,
   "context_usage_rate": 1.0,

@@ -58,6 +58,49 @@ function initialize() {
 // Separate async function for session initialization
 async function initializeSession() {
     try {
+        // Check if we have a saved session in localStorage
+        const savedSessionId = localStorage.getItem('currentSessionId');
+
+        if (savedSessionId) {
+            // Try to load the saved session
+            try {
+                const historyResponse = await fetch(`${API_BASE_URL}/session/${savedSessionId}/history`);
+                if (historyResponse.ok) {
+                    const data = await historyResponse.json();
+                    sessionId = savedSessionId;
+                    console.log('✅ Restored session from localStorage:', sessionId);
+
+                    // Load chat history
+                    if (data.history && data.history.length > 0) {
+                        data.history.forEach(msg => {
+                            if (msg.role === 'user') {
+                                addUserMessage(msg.content);
+                            } else if (msg.role === 'assistant') {
+                                addBotMessage(msg.content);
+                            }
+                        });
+                    } else {
+                        addBotMessage('Hello! I\'m your AI assistant. How can I help you today?');
+                    }
+
+                    // Load suggestions (from suggestions.js)
+                    if (typeof loadSuggestedQuestions !== 'undefined') {
+                        await loadSuggestedQuestions();
+                    }
+
+                    // Setup autocomplete (from suggestions.js)
+                    if (typeof setupAutocomplete !== 'undefined') {
+                        setupAutocomplete();
+                    }
+
+                    return; // Successfully restored session
+                }
+            } catch (err) {
+                console.log('⚠️ Failed to restore saved session, creating new one');
+                localStorage.removeItem('currentSessionId');
+            }
+        }
+
         // Create a new session
         const response = await fetch(`${API_BASE_URL}/session/create`, {
             method: 'POST',
@@ -68,6 +111,9 @@ async function initializeSession() {
 
         const data = await response.json();
         sessionId = data.session_id;
+
+        // Save to localStorage
+        localStorage.setItem('currentSessionId', sessionId);
         console.log('✅ Session created:', sessionId);
 
         // Add welcome message
@@ -760,5 +806,298 @@ async function sendMessage() {
     }
 }
 
+// ===== SIDEBAR FUNCTIONALITY =====
+
+// Sidebar state
+let sidebarOpen = false;
+let currentSessionId = null;
+let sessions = [];
+
+// Initialize sidebar
+function initializeSidebar() {
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const sidebar = document.getElementById('chatSidebar');
+
+    // Toggle button click
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => toggleSidebar());
+    }
+
+    // Close button click
+    if (sidebarClose) {
+        sidebarClose.addEventListener('click', () => closeSidebar());
+    }
+
+    // Overlay click (mobile)
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', () => closeSidebar());
+    }
+
+    // New chat button
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', () => createNewChat());
+    }
+
+    // Load sessions from API
+    loadSessions();
+
+    console.log('✅ Sidebar initialized');
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+    const sidebar = document.getElementById('chatSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (sidebarOpen) {
+        closeSidebar();
+    } else {
+        sidebar.classList.add('open');
+        overlay.classList.add('active');
+        document.body.classList.add('sidebar-open');
+        sidebarOpen = true;
+
+        // Reload sessions when opening
+        loadSessions();
+    }
+}
+
+// Close sidebar
+function closeSidebar() {
+    const sidebar = document.getElementById('chatSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+    sidebarOpen = false;
+}
+
+// Load sessions from API
+async function loadSessions() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/sessions/list`);
+        if (!response.ok) {
+            throw new Error('Failed to load sessions');
+        }
+
+        const data = await response.json();
+        sessions = data.sessions || [];
+
+        renderSessions();
+    } catch (error) {
+        console.error('Error loading sessions:', error);
+        renderEmptyState();
+    }
+}
+
+// Render sessions list
+function renderSessions() {
+    const sessionsList = document.getElementById('sessionsList');
+
+    if (!sessionsList) return;
+
+    if (sessions.length === 0) {
+        renderEmptyState();
+        return;
+    }
+
+    sessionsList.innerHTML = '';
+
+    sessions.forEach(session => {
+        const sessionItem = createSessionItem(session);
+        sessionsList.appendChild(sessionItem);
+    });
+}
+
+// Create session item element
+function createSessionItem(session) {
+    const item = document.createElement('div');
+    item.className = 'session-item';
+    item.dataset.sessionId = session.session_id;
+
+    // Mark active session
+    if (session.session_id === sessionId) {
+        item.classList.add('active');
+    }
+
+    const timeAgo = formatTimeAgo(session.last_active);
+
+    item.innerHTML = `
+        <div class="session-title">${session.title}</div>
+        <div class="session-metadata">
+            <span class="session-time">🕒 ${timeAgo}</span>
+            <span class="session-message-count">💬 ${session.message_count}</span>
+        </div>
+        <button class="session-delete" title="Delete conversation">🗑️</button>
+    `;
+
+    // Click to switch session
+    item.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('session-delete')) {
+            switchToSession(session.session_id);
+        }
+    });
+
+    // Delete button
+    const deleteBtn = item.querySelector('.session-delete');
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSession(session.session_id);
+    });
+
+    return item;
+}
+
+// Render empty state
+function renderEmptyState() {
+    const sessionsList = document.getElementById('sessionsList');
+
+    if (!sessionsList) return;
+
+    sessionsList.innerHTML = `
+        <div class="sessions-empty">
+            <div class="sessions-empty-icon">💬</div>
+            <div class="sessions-empty-text">No conversations yet.<br>Start a new chat!</div>
+        </div>
+    `;
+}
+
+// Format time ago
+function formatTimeAgo(timestamp) {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffMs = now - time;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return time.toLocaleDateString();
+}
+
+// Create new chat
+async function createNewChat() {
+    try {
+        // Clear current chat
+        chatMessages.innerHTML = '';
+        sessionId = null;
+
+        // Remove saved session from localStorage
+        localStorage.removeItem('currentSessionId');
+
+        // Create new session
+        await initializeSession();
+
+        // Reload sessions list
+        await loadSessions();
+
+        // Close sidebar
+        closeSidebar();
+
+        console.log('✅ New chat created');
+    } catch (error) {
+        console.error('Error creating new chat:', error);
+        addBotMessage('Sorry, I couldn\'t create a new chat. Please try again.');
+    }
+}
+
+// Switch to existing session
+async function switchToSession(newSessionId) {
+    try {
+        // Don't switch if already active
+        if (newSessionId === sessionId) {
+            closeSidebar();
+            return;
+        }
+
+        // Clear current chat
+        chatMessages.innerHTML = '';
+
+        // Load session history
+        const response = await fetch(`${API_BASE_URL}/session/${newSessionId}/history`);
+
+        if (!response.ok) {
+            throw new Error('Failed to load session history');
+        }
+
+        const data = await response.json();
+        sessionId = newSessionId;
+
+        // Save to localStorage
+        localStorage.setItem('currentSessionId', sessionId);
+
+        // Render chat history
+        if (data.history && data.history.length > 0) {
+            data.history.forEach(msg => {
+                if (msg.role === 'user') {
+                    addUserMessage(msg.content);
+                } else if (msg.role === 'assistant') {
+                    addBotMessage(msg.content);
+                }
+            });
+        } else {
+            addBotMessage('Hello! I\'m your AI assistant. How can I help you today?');
+        }
+
+        // Update sidebar active state
+        document.querySelectorAll('.session-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.sessionId === newSessionId) {
+                item.classList.add('active');
+            }
+        });
+
+        // Close sidebar
+        closeSidebar();
+
+        console.log('✅ Switched to session:', newSessionId);
+    } catch (error) {
+        console.error('Error switching session:', error);
+        addBotMessage('Sorry, I couldn\'t load that conversation. Please try again.');
+    }
+}
+
+// Delete session
+async function deleteSession(sessionIdToDelete) {
+    // Confirm deletion
+    if (!confirm('Delete this conversation? This cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/session/${sessionIdToDelete}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete session');
+        }
+
+        // If deleting current session, create new one
+        if (sessionIdToDelete === sessionId) {
+            await createNewChat();
+        } else {
+            // Just reload sessions list
+            await loadSessions();
+        }
+
+        console.log('✅ Session deleted:', sessionIdToDelete);
+    } catch (error) {
+        console.error('Error deleting session:', error);
+        alert('Sorry, I couldn\'t delete that conversation. Please try again.');
+    }
+}
+
 // Initialize on page load
-window.addEventListener('DOMContentLoaded', initialize);
+window.addEventListener('DOMContentLoaded', () => {
+    initialize();
+    initializeSidebar();
+});

@@ -169,3 +169,54 @@ class SessionManager:
     def get_session_count(self) -> int:
         """Get total number of active sessions."""
         return len(self.sessions)
+
+    def list_sessions(self) -> List[Dict]:
+        """
+        Get list of all sessions with metadata.
+
+        Returns:
+            List of session summaries
+        """
+        sessions_list = []
+        for session_id, session in self.sessions.items():
+            # Generate title from first user message
+            title = "New Conversation"
+            if session.messages:
+                first_user_msg = next(
+                    (msg for msg in session.messages if msg['role'] == 'user'),
+                    None
+                )
+                if first_user_msg:
+                    title = first_user_msg['content'][:50]
+                    if len(first_user_msg['content']) > 50:
+                        title += "..."
+
+            sessions_list.append({
+                'session_id': session_id,
+                'title': session.metadata.get('title', title),
+                'message_count': len(session.messages),
+                'created_at': session.created_at.isoformat(),
+                'last_active': session.last_active.isoformat()
+            })
+
+        # Sort by last_active (most recent first)
+        sessions_list.sort(key=lambda x: x['last_active'], reverse=True)
+        return sessions_list
+
+    def update_session_title(self, session_id: str, title: str) -> bool:
+        """
+        Update session title.
+
+        Args:
+            session_id: Session identifier
+            title: New title
+
+        Returns:
+            True if successful, False if session not found
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return False
+
+        session.metadata['title'] = title
+        return True

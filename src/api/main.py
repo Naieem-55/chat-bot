@@ -791,3 +791,32 @@ if __name__ == "__main__":
         port=settings.api_port,
         reload=True
     )
+
+
+@app.get("/sessions/list")
+async def list_sessions():
+    """List all conversation sessions with metadata."""
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    sessions = rag_pipeline.session_manager.list_sessions()
+    return {"sessions": sessions, "count": len(sessions)}
+
+
+class UpdateTitleRequest(BaseModel):
+    """Update session title request."""
+    title: str
+
+
+@app.put("/session/{session_id}/title")
+async def update_session_title(session_id: str, request: UpdateTitleRequest):
+    """Update the title of a session."""
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    success = rag_pipeline.session_manager.update_session_title(session_id, request.title)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"message": "Title updated successfully", "session_id": session_id, "title": request.title}

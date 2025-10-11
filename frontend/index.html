@@ -7,6 +7,38 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Chat History">
+        <span class="toggle-icon">☰</span>
+    </button>
+
+    <!-- Chat History Sidebar -->
+    <div class="sidebar" id="chatSidebar">
+        <div class="sidebar-header">
+            <h3>Chat History</h3>
+            <button class="sidebar-close" id="sidebarClose" title="Close">✕</button>
+        </div>
+
+        <button class="new-chat-btn" id="newChatBtn">
+            <span class="btn-icon">+</span>
+            <span>New Chat</span>
+        </button>
+
+        <div class="sessions-container" id="sessionsContainer">
+            <!-- Sessions will be populated here -->
+            <div class="sessions-list" id="sessionsList">
+                <!-- Session items will be inserted dynamically -->
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <small>Session timeout: 60 min</small>
+        </div>
+    </div>
+
+    <!-- Sidebar Overlay (for mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <div class="chat-container">
         <div class="chat-header">
             <div style="text-align: center; flex: 1;">
