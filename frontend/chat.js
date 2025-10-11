@@ -4,14 +4,59 @@ const API_BASE_URL = 'http://localhost:8000';
 // State management
 let sessionId = null;
 
-// DOM elements
-const chatMessages = document.getElementById('chatMessages');
-const messageInput = document.getElementById('messageInput');
-const sendButton = document.getElementById('sendButton');
-const loadingTemplate = document.getElementById('loadingTemplate');
+// DOM elements (initialized after DOM loads)
+let chatMessages;
+let messageInput;
+let sendButton;
+let loadingTemplate;
 
 // Initialize
-async function initialize() {
+function initialize() {
+    console.log('✅ Initialize function called');
+
+    // Get DOM elements (now that DOM is loaded)
+    chatMessages = document.getElementById('chatMessages');
+    messageInput = document.getElementById('messageInput');
+    sendButton = document.getElementById('sendButton');
+    loadingTemplate = document.getElementById('loadingTemplate');
+
+    console.log('✅ Elements found:', {
+        chatMessages: !!chatMessages,
+        messageInput: !!messageInput,
+        sendButton: !!sendButton,
+        loadingTemplate: !!loadingTemplate
+    });
+
+    if (!messageInput || !sendButton || !chatMessages) {
+        console.error('❌ Required elements not found!');
+        return;
+    }
+
+    // Setup event listeners FIRST (synchronously)
+    sendButton.addEventListener('click', () => {
+        console.log('🖱️ Send button clicked!');
+        sendMessage();
+    });
+
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            console.log('⌨️ Enter key pressed!');
+            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+            if (!autocompleteDropdown || autocompleteDropdown.style.display === 'none') {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+    });
+
+    console.log('✅ Event listeners attached');
+
+    // Initialize session asynchronously (don't await, let it run in background)
+    initializeSession();
+}
+
+// Separate async function for session initialization
+async function initializeSession() {
     try {
         // Create a new session
         const response = await fetch(`${API_BASE_URL}/session/create`, {
@@ -23,13 +68,23 @@ async function initialize() {
 
         const data = await response.json();
         sessionId = data.session_id;
-        console.log('Session created:', sessionId);
+        console.log('✅ Session created:', sessionId);
 
         // Add welcome message
-        addBotMessage('Hello! I\'m your customer support assistant. How can I help you today?');
+        addBotMessage('Hello! I\'m your AI assistant. How can I help you today?');
+
+        // Load suggestions (from suggestions.js)
+        if (typeof loadSuggestedQuestions !== 'undefined') {
+            await loadSuggestedQuestions();
+        }
+
+        // Setup autocomplete (from suggestions.js)
+        if (typeof setupAutocomplete !== 'undefined') {
+            setupAutocomplete();
+        }
 
     } catch (error) {
-        console.error('Failed to initialize:', error);
+        console.error('❌ Failed to initialize session:', error);
         addBotMessage('Sorry, I\'m having trouble connecting. Please refresh the page.');
     }
 }
@@ -462,9 +517,17 @@ async function submitFeedback(messageId, feedback, messageData) {
 
 // Send message to API with streaming typing effect
 async function sendMessage() {
-    const message = messageInput.value.trim();
+    console.log('🚀 sendMessage() function called');
+    console.log('messageInput element:', messageInput);
+    console.log('messageInput value:', messageInput ? messageInput.value : 'NULL');
 
-    if (!message) return;
+    const message = messageInput.value.trim();
+    console.log('Message to send:', message);
+
+    if (!message) {
+        console.log('⚠ Empty message, aborting send');
+        return;
+    }
 
     // Disable input
     messageInput.disabled = true;
@@ -617,6 +680,16 @@ async function sendMessage() {
         // Remove streaming class
         messageDiv.classList.remove('streaming');
 
+        // Hide suggested questions after first message
+        if (typeof hideSuggestedQuestions !== 'undefined') {
+            hideSuggestedQuestions();
+        }
+
+        // Show "People Also Asked" or follow-up suggestions
+        if (typeof showPeopleAlsoAsked !== 'undefined') {
+            await showPeopleAlsoAsked(message, data.response, data.sources);
+        }
+
     } catch (error) {
         console.error('Error sending message:', error);
         removeLoading();
@@ -636,15 +709,6 @@ async function sendMessage() {
         messageInput.focus();
     }
 }
-
-// Event listeners
-sendButton.addEventListener('click', sendMessage);
-
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        sendMessage();
-    }
-});
 
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', initialize);

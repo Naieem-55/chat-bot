@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Send Button Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e5e5e5;
+        }
+        .debug-section {
+            background: #252525;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+        }
+        input {
+            padding: 10px;
+            width: 300px;
+            font-size: 14px;
+            margin-right: 10px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            color: #e5e5e5;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #1a1a1a;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            padding-left: 10px;
+        }
+        .error {
+            border-left-color: #dc3545;
+            color: #ff6b6b;
+        }
+        .success {
+            border-left-color: #28a745;
+            color: #51cf66;
+        }
+        h1 {
+            color: #007bff;
+        }
+        h2 {
+            color: #00bfff;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Send Button Debug Tool</h1>
+    <p>This page tests if the Send button functionality works correctly.</p>
+
+    <div class="debug-section">
+        <h2>1. Test Input & Button</h2>
+        <input type="text" id="messageInput" placeholder="Type 'what is html'" value="what is html">
+        <button id="sendButton">Send</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>2. Element Detection</h2>
+        <div id="elementStatus"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>3. Event Listener Status</h2>
+        <div id="listenerStatus"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>4. Console Log</h2>
+        <div class="log" id="consoleLog"></div>
+    </div>
+
+    <script>
+        // Logger
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('consoleLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Wait for DOM to load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('✓ DOMContentLoaded event fired', 'success');
+
+            // Get elements
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const elementStatus = document.getElementById('elementStatus');
+            const listenerStatus = document.getElementById('listenerStatus');
+
+            // Check if elements exist
+            if (messageInput && sendButton) {
+                elementStatus.innerHTML = `
+                    <div style="color: #51cf66;">✓ messageInput found: ${messageInput.id}</div>
+                    <div style="color: #51cf66;">✓ sendButton found: ${sendButton.id}</div>
+                    <div style="color: #51cf66;">✓ messageInput value: "${messageInput.value}"</div>
+                `;
+                log('✓ All DOM elements found', 'success');
+            } else {
+                elementStatus.innerHTML = `
+                    <div style="color: #ff6b6b;">✗ Elements not found!</div>
+                    <div>messageInput: ${messageInput ? 'found' : 'NULL'}</div>
+                    <div>sendButton: ${sendButton ? 'found' : 'NULL'}</div>
+                `;
+                log('✗ ERROR: Elements not found!', 'error');
+                return;
+            }
+
+            // Send message function
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                log(`📤 sendMessage() called`, 'success');
+                log(`Message: "${message}"`, 'info');
+
+                if (!message) {
+                    log('⚠ Empty message, not sending', 'error');
+                    return;
+                }
+
+                log(`✓ Would send message: "${message}"`, 'success');
+                alert(`SUCCESS! Message would be sent: "${message}"`);
+            }
+
+            // Add event listeners
+            try {
+                sendButton.addEventListener('click', () => {
+                    log('🖱 Button CLICKED!', 'success');
+                    sendMessage();
+                });
+                log('✓ Click listener added to button', 'success');
+
+                messageInput.addEventListener('keypress', (e) => {
+                    log(`⌨ Key pressed: ${e.key}`, 'info');
+                    if (e.key === 'Enter') {
+                        log('✓ Enter key detected', 'success');
+                        sendMessage();
+                    }
+                });
+                log('✓ Keypress listener added to input', 'success');
+
+                listenerStatus.innerHTML = `
+                    <div style="color: #51cf66;">✓ Click event listener attached</div>
+                    <div style="color: #51cf66;">✓ Keypress event listener attached</div>
+                    <div style="margin-top: 10px;">
+                        <strong>Try:</strong><br>
+                        1. Click the Send button<br>
+                        2. Press Enter key in input<br>
+                        3. Check console log below
+                    </div>
+                `;
+
+            } catch (error) {
+                log(`✗ ERROR adding listeners: ${error.message}`, 'error');
+                listenerStatus.innerHTML = `<div style="color: #ff6b6b;">✗ Error: ${error.message}</div>`;
+            }
+
+            log('✓ Initialization complete', 'success');
+        });
+
+        // Log page load
+        log('Page script loaded', 'info');
+    </script>
+</body>
+</html>

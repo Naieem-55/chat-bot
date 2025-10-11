@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Send Button Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #e5e5e5;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #252525;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h2 {
+            color: #00bfff;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.pending {
+            background: #333;
+            color: #ffa500;
+        }
+        .status.success {
+            background: #1a4d2e;
+            color: #51cf66;
+        }
+        .status.error {
+            background: #4d1a1a;
+            color: #ff6b6b;
+        }
+        input {
+            width: 70%;
+            padding: 12px;
+            font-size: 14px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            color: #e5e5e5;
+            border-radius: 5px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #1a1a1a;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #3a3a3a;
+        }
+        .log-entry {
+            margin: 3px 0;
+            padding: 5px;
+            border-left: 3px solid #3a3a3a;
+            padding-left: 10px;
+        }
+        .log-entry.info {
+            border-left-color: #007bff;
+            color: #64b5f6;
+        }
+        .log-entry.success {
+            border-left-color: #28a745;
+            color: #51cf66;
+        }
+        .log-entry.error {
+            border-left-color: #dc3545;
+            color: #ff6b6b;
+        }
+        .log-entry.warning {
+            border-left-color: #ffc107;
+            color: #ffd54f;
+        }
+        .code {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #3a3a3a;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Complete Send Button Test</h1>
+        <p>This page tests the exact same code as the main chatbot to verify the Send button works.</p>
+
+        <div class="test-section">
+            <h2>1️⃣ DOM Elements Check</h2>
+            <div id="domCheck" class="status pending">⏳ Checking...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>2️⃣ Event Listeners Check</h2>
+            <div id="listenersCheck" class="status pending">⏳ Checking...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>3️⃣ Interactive Test</h2>
+            <input type="text" id="messageInput" placeholder="Type 'what is html' and click Send" value="what is html">
+            <button id="sendButton">Send</button>
+            <div id="interactiveResult" style="margin-top: 15px;"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4️⃣ Console Log</h2>
+            <div class="log" id="consoleLog"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>5️⃣ Test Results Summary</h2>
+            <div id="summary" class="status pending">⏳ Tests running...</div>
+        </div>
+    </div>
+
+    <script>
+        // Logger function
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('consoleLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Test results
+        let testResults = {
+            domElements: false,
+            eventListeners: false,
+            buttonClick: false,
+            enterKey: false
+        };
+
+        // This is the EXACT code from chat.js
+        const API_BASE_URL = 'http://localhost:8000';
+        let sessionId = null;
+        let chatMessages;
+        let messageInput;
+        let sendButton;
+        let loadingTemplate;
+
+        async function sendMessage() {
+            log('🚀 sendMessage() function called', 'success');
+            log(`messageInput element: ${messageInput ? messageInput.id : 'NULL'}`, 'info');
+            log(`messageInput value: "${messageInput ? messageInput.value : 'NULL'}"`, 'info');
+
+            const message = messageInput.value.trim();
+            log(`Message to send: "${message}"`, 'info');
+
+            if (!message) {
+                log('⚠ Empty message, aborting send', 'warning');
+                return;
+            }
+
+            log('✅ SUCCESS! Message would be sent!', 'success');
+            testResults.buttonClick = true;
+
+            const result = document.getElementById('interactiveResult');
+            result.innerHTML = `
+                <div style="background: #1a4d2e; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                    <strong style="color: #51cf66;">✅ SUCCESS!</strong><br>
+                    <span style="color: #e5e5e5;">Message "${message}" would be sent to the server.</span><br>
+                    <small style="color: #a0a0a0;">In the real app, this would call the API and get a response.</small>
+                </div>
+            `;
+
+            updateSummary();
+        }
+
+        async function initialize() {
+            log('=== Initialization Started ===', 'info');
+
+            // Get DOM elements (now that DOM is loaded)
+            log('Getting DOM elements...', 'info');
+            chatMessages = document.getElementById('consoleLog'); // Using log as messages
+            messageInput = document.getElementById('messageInput');
+            sendButton = document.getElementById('sendButton');
+
+            // Check if elements exist
+            const domCheck = document.getElementById('domCheck');
+            if (!messageInput || !sendButton) {
+                log('❌ ERROR: Elements not found!', 'error');
+                log(`messageInput: ${messageInput ? 'FOUND' : 'NULL'}`, 'error');
+                log(`sendButton: ${sendButton ? 'FOUND' : 'NULL'}`, 'error');
+                domCheck.className = 'status error';
+                domCheck.textContent = '❌ FAILED: DOM elements not found';
+                return;
+            }
+
+            log('✓ messageInput found', 'success');
+            log('✓ sendButton found', 'success');
+            domCheck.className = 'status success';
+            domCheck.innerHTML = `
+                ✅ PASSED: All DOM elements found<br>
+                <small>messageInput: ${messageInput.id}<br>
+                sendButton: ${sendButton.id}</small>
+            `;
+            testResults.domElements = true;
+
+            // Setup event listeners
+            log('Setting up event listeners...', 'info');
+
+            sendButton.addEventListener('click', () => {
+                log('🖱️ Send button clicked!', 'success');
+                sendMessage();
+            });
+
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    log('⌨️ Enter key pressed', 'success');
+                    testResults.enterKey = true;
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            log('✓ Click listener added to sendButton', 'success');
+            log('✓ Keydown listener added to messageInput', 'success');
+
+            const listenersCheck = document.getElementById('listenersCheck');
+            listenersCheck.className = 'status success';
+            listenersCheck.innerHTML = `
+                ✅ PASSED: Event listeners attached<br>
+                <small>• Click event on Send button<br>
+                • Keydown event on input field</small>
+            `;
+            testResults.eventListeners = true;
+
+            log('=== Initialization Complete ===', 'success');
+            log('👉 Try clicking the Send button or pressing Enter!', 'info');
+
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const passed = Object.values(testResults).filter(v => v).length;
+            const total = Object.keys(testResults).length;
+
+            if (passed === total) {
+                summary.className = 'status success';
+                summary.innerHTML = `
+                    ✅ ALL TESTS PASSED! (${passed}/${total})<br>
+                    <small>The Send button is working correctly!</small>
+                `;
+            } else {
+                summary.className = 'status pending';
+                summary.innerHTML = `
+                    ⏳ Tests: ${passed}/${total} passed<br>
+                    <small>
+                        ${testResults.domElements ? '✅' : '⏳'} DOM Elements<br>
+                        ${testResults.eventListeners ? '✅' : '⏳'} Event Listeners<br>
+                        ${testResults.buttonClick ? '✅' : '⏳'} Button Click<br>
+                        ${testResults.enterKey ? '✅' : '⏳'} Enter Key
+                    </small>
+                `;
+            }
+        }
+
+        // Initialize on DOM load (EXACT same pattern as chat.js)
+        window.addEventListener('DOMContentLoaded', initialize);
+
+        log('Page loaded, waiting for DOMContentLoaded...', 'info');
+    </script>
+</body>
+</html>

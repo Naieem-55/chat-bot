@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Test - Send Button</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #e5e5e5;
+            padding: 40px;
+            margin: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #252525;
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #007bff;
+        }
+        h1 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .status.pending {
+            background: #4a4a00;
+            color: #ffd700;
+        }
+        .status.success {
+            background: #1a4d2e;
+            color: #51cf66;
+            font-size: 18px;
+        }
+        .status.error {
+            background: #4d1a1a;
+            color: #ff6b6b;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        input {
+            width: 70%;
+            padding: 15px;
+            font-size: 16px;
+            background: #1a1a1a;
+            border: 2px solid #3a3a3a;
+            color: #e5e5e5;
+            border-radius: 5px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #1a1a1a;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #3a3a3a;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .log-entry.success {
+            color: #51cf66;
+        }
+        .log-entry.info {
+            color: #64b5f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Standalone Send Button Test</h1>
+        <p style="color: #a0a0a0;">This is a minimal test without any dependencies.</p>
+
+        <div id="statusDiv" class="status pending">
+            ⏳ Waiting for test...
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="messageInput" placeholder="Type 'what is html'" value="what is html">
+            <button id="sendButton">Send</button>
+        </div>
+
+        <div class="log" id="logDiv"></div>
+    </div>
+
+    <script>
+        // Logging function
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('logDiv');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Main logic - EXACT same pattern as chat.js
+        log('Script loaded', 'info');
+
+        let messageInput;
+        let sendButton;
+
+        function sendMessage() {
+            log('🚀 sendMessage() called!', 'success');
+
+            const message = messageInput.value.trim();
+            log(`Message value: "${message}"`, 'info');
+
+            if (!message) {
+                log('⚠ Message is empty', 'info');
+                return;
+            }
+
+            log('✅ SUCCESS! Button works!', 'success');
+
+            const statusDiv = document.getElementById('statusDiv');
+            statusDiv.className = 'status success';
+            statusDiv.innerHTML = `
+                ✅ SEND BUTTON WORKS!<br>
+                <small style="font-weight: normal;">Message: "${message}"</small>
+            `;
+        }
+
+        function initialize() {
+            log('Initialize() called', 'info');
+
+            // Get elements
+            messageInput = document.getElementById('messageInput');
+            sendButton = document.getElementById('sendButton');
+
+            log('messageInput: ' + (messageInput ? 'FOUND' : 'NULL'), messageInput ? 'success' : 'error');
+            log('sendButton: ' + (sendButton ? 'FOUND' : 'NULL'), sendButton ? 'success' : 'error');
+
+            if (!messageInput || !sendButton) {
+                log('❌ ERROR: Elements not found!', 'error');
+                document.getElementById('statusDiv').className = 'status error';
+                document.getElementById('statusDiv').textContent = '❌ ERROR: Elements not found';
+                return;
+            }
+
+            // Add event listeners
+            sendButton.addEventListener('click', () => {
+                log('🖱️ Button clicked!', 'success');
+                sendMessage();
+            });
+
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    log('⌨️ Enter pressed!', 'success');
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            log('✓ Event listeners added', 'success');
+            log('👉 Now click the Send button!', 'info');
+        }
+
+        // Initialize on DOM load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('DOMContentLoaded fired', 'success');
+            initialize();
+        });
+    </script>
+</body>
+</html>

@@ -15,6 +15,7 @@ from ..session.session_manager import SessionManager
 from ..rag_pipeline import RAGPipeline
 from ..feedback.feedback_manager import FeedbackManager
 from ..feedback.hallucination_detector import HallucinationDetector
+from ..suggestions.question_generator import QuestionGenerator, PeopleAlsoAsked
 import uuid
 
 # Setup logging
@@ -41,6 +42,8 @@ app.add_middleware(
 rag_pipeline: Optional[RAGPipeline] = None
 feedback_manager: Optional[FeedbackManager] = None
 hallucination_detector: Optional[HallucinationDetector] = None
+question_generator: Optional[QuestionGenerator] = None
+people_also_asked: Optional[PeopleAlsoAsked] = None
 
 
 # Pydantic models
@@ -75,7 +78,7 @@ class HealthResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize components on startup."""
-    global rag_pipeline, feedback_manager, hallucination_detector
+    global rag_pipeline, feedback_manager, hallucination_detector, question_generator, people_also_asked
 
     logger.info("Initializing RAG pipeline...")
 
@@ -126,8 +129,13 @@ async def startup_event():
         # Initialize hallucination detector
         hallucination_detector = HallucinationDetector()
 
+        # Initialize suggestions
+        question_generator = QuestionGenerator()
+        people_also_asked = PeopleAlsoAsked()
+
         logger.info("✓ RAG pipeline initialized successfully")
         logger.info("✓ Feedback system initialized")
+        logger.info("✓ Question suggestions initialized")
 
     except Exception as e:
         logger.error(f"Failed to initialize RAG pipeline: {str(e)}")
@@ -387,6 +395,152 @@ async def export_feedback():
         }
     except Exception as e:
         logger.error(f"Error exporting feedback: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Suggestions endpoints
+class AutocompleteRequest(BaseModel):
+    """Autocomplete request model."""
+    partial_query: str
+
+
+class FollowUpRequest(BaseModel):
+    """Follow-up request model."""
+    user_query: str
+    bot_response: str
+    sources: List[Dict[str, Any]]
+
+
+@app.get("/suggestions/common-questions")
+async def get_common_questions(max_questions: int = 10):
+    """
+    Get common suggested questions based on document content.
+
+    Args:
+        max_questions: Maximum number of questions to return
+
+    Returns:
+        List of suggested questions
+    """
+    if not question_generator or not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Get all documents for analysis
+        all_docs = rag_pipeline.vector_store.get_all_documents()
+
+        # Generate suggestions
+        questions = question_generator.generate_from_documents(
+            documents=all_docs,
+            max_questions=max_questions
+        )
+
+        return {
+            "questions": questions,
+            "count": len(questions)
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating common questions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/suggestions/autocomplete")
+async def autocomplete_query(request: AutocompleteRequest):
+    """
+    Get autocomplete suggestions for partial query.
+
+    Args:
+        request: Partial query text
+
+    Returns:
+        List of suggested completions
+    """
+    if not question_generator or not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Get all documents
+        all_docs = rag_pipeline.vector_store.get_all_documents()
+
+        # Generate autocomplete suggestions
+        suggestions = question_generator.generate_autocomplete(
+            partial_query=request.partial_query,
+            documents=all_docs,
+            max_suggestions=5
+        )
+
+        return {
+            "suggestions": suggestions,
+            "count": len(suggestions)
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating autocomplete: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/suggestions/follow-ups")
+async def get_follow_up_suggestions(request: FollowUpRequest):
+    """
+    Get follow-up question suggestions based on conversation context.
+
+    Args:
+        request: User query, bot response, and sources
+
+    Returns:
+        List of follow-up questions
+    """
+    if not question_generator:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Generate follow-up questions
+        follow_ups = question_generator.generate_follow_ups(
+            user_query=request.user_query,
+            bot_response=request.bot_response,
+            context_docs=request.sources
+        )
+
+        return {
+            "follow_ups": follow_ups,
+            "count": len(follow_ups)
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating follow-ups: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/suggestions/people-also-asked")
+async def get_people_also_asked(request: FollowUpRequest):
+    """
+    Get 'People Also Asked' suggestions based on query.
+
+    Args:
+        request: User query and bot response
+
+    Returns:
+        List of related questions
+    """
+    if not people_also_asked:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Generate PAA questions
+        paa_questions = people_also_asked.generate(
+            user_query=request.user_query,
+            response=request.bot_response,
+            max_questions=4
+        )
+
+        return {
+            "questions": paa_questions,
+            "count": len(paa_questions)
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating PAA: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

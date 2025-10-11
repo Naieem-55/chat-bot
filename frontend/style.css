@@ -547,3 +547,144 @@ body {
         font-size: 16px; /* Prevents zoom on iOS */
     }
 }
+
+/* Suggested Questions */
+.suggested-questions {
+    padding: 20px 24px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.suggestions-header {
+    font-size: 14px;
+    color: #a0a0a0;
+    margin-bottom: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.suggestion-chip {
+    background: #252525;
+    color: #e5e5e5;
+    padding: 10px 16px;
+    border-radius: 20px;
+    border: 1px solid #3a3a3a;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.suggestion-chip:hover {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.suggestion-chip:active {
+    transform: translateY(0);
+}
+
+/* People Also Asked */
+.people-also-asked {
+    padding: 16px 24px;
+    background: #1a1a1a;
+    border-top: 1px solid #2a2a2a;
+}
+
+.paa-header {
+    font-size: 13px;
+    color: #a0a0a0;
+    margin-bottom: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.paa-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.paa-question {
+    background: #252525;
+    color: #e5e5e5;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #3a3a3a;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.paa-question:before {
+    content: "💬";
+    font-size: 14px;
+}
+
+.paa-question:hover {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+    transform: translateX(4px);
+}
+
+/* Autocomplete Dropdown */
+.autocomplete-dropdown {
+    position: absolute;
+    bottom: 90px;
+    left: 24px;
+    right: 24px;
+    background: #252525;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.autocomplete-item {
+    padding: 12px 16px;
+    color: #e5e5e5;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #2a2a2a;
+    transition: all 0.15s;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background: #2a2a2a;
+    color: #ffffff;
+}
+
+.autocomplete-item:before {
+    content: "🔍";
+    margin-right: 8px;
+    opacity: 0.6;
+}
+
+/* Hide suggestions when there are messages */
+.chat-container.has-messages .suggested-questions {
+    display: none;
+}

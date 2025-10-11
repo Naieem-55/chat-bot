@@ -3,21 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Support Chatbot</title>
+    <title>AI Chatbot</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <div>
-                <h2>Customer Support</h2>
-                <p>Ask us anything!</p>
+            <div style="text-align: center; flex: 1;">
+                <h2>AI Chatbot</h2>
+                <p>Ask anything!</p>
             </div>
             <a href="analytics.html" class="analytics-link" title="View Analytics">📊</a>
         </div>
 
+        <!-- Suggested Questions (shown when empty) -->
+        <div class="suggested-questions" id="suggestedQuestions">
+            <div class="suggestions-header">💡 Suggested Questions</div>
+            <div class="suggestions-list" id="suggestionsList">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
         <div class="chat-messages" id="chatMessages">
             <!-- Messages will be inserted here -->
+        </div>
+
+        <!-- People Also Asked (shown after response) -->
+        <div class="people-also-asked" id="peopleAlsoAsked" style="display: none;">
+            <div class="paa-header">👥 People also asked:</div>
+            <div class="paa-list" id="paaList">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
+        <!-- Autocomplete Dropdown -->
+        <div class="autocomplete-dropdown" id="autocompleteDropdown" style="display: none;">
+            <!-- Will be populated dynamically -->
         </div>
 
         <div class="chat-input-container">
@@ -42,6 +63,8 @@
         </div>
     </template>
 
-    <script src="chat.js?v=2.0"></script>
+    <!-- Temporarily disabled to test freeze issue -->
+    <!-- <script src="suggestions.js?v=1.1"></script> -->
+    <script src="chat.js?v=3.4"></script>
 </body>
 </html>

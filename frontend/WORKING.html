@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot - WORKING VERSION</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 900px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid #2a2a2a;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+            color: #ffffff;
+            padding: 24px 28px;
+            border-radius: 12px 12px 0 0;
+            border-bottom: 1px solid #2a2a2a;
+            text-align: center;
+        }
+
+        .chat-header h2 {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .chat-header p {
+            font-size: 14px;
+            color: #a0a0a0;
+            margin-top: 4px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            max-width: 75%;
+            padding: 14px 18px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: #2a2a2a;
+            color: #ffffff;
+            border: 1px solid #3a3a3a;
+        }
+
+        .bot-message {
+            align-self: flex-start;
+            background: #252525;
+            color: #e5e5e5;
+            border: 1px solid #2a2a2a;
+        }
+
+        .chat-input-container {
+            display: flex;
+            padding: 20px 24px;
+            background: #1a1a1a;
+            border-top: 1px solid #2a2a2a;
+            gap: 12px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 14px 18px;
+            border: 1px solid #3a3a3a;
+            border-radius: 10px;
+            font-size: 15px;
+            outline: none;
+            background: #252525;
+            color: #ffffff;
+        }
+
+        #messageInput:focus {
+            border-color: #4a4a4a;
+            background: #2a2a2a;
+        }
+
+        #sendButton {
+            padding: 14px 28px;
+            background: #ffffff;
+            color: #0f0f0f;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #sendButton:hover {
+            background: #e5e5e5;
+            transform: translateY(-1px);
+        }
+
+        #sendButton:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #505050;
+            color: #808080;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>AI Chatbot</h2>
+            <p>Ask anything!</p>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot-message">
+                Hello! I'm your AI assistant. How can I help you today?
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <input
+                type="text"
+                id="messageInput"
+                placeholder="Type your message..."
+                value="what is html"
+                autocomplete="off"
+            >
+            <button id="sendButton">Send</button>
+        </div>
+    </div>
+
+    <script>
+        console.log('✅ Script loaded');
+
+        // Get elements AFTER DOM loads
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('✅ DOMContentLoaded fired');
+
+            const chatMessages = document.getElementById('chatMessages');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+
+            console.log('✅ Elements found:', {
+                chatMessages: !!chatMessages,
+                messageInput: !!messageInput,
+                sendButton: !!sendButton
+            });
+
+            if (!messageInput || !sendButton || !chatMessages) {
+                console.error('❌ Elements not found!');
+                alert('ERROR: Elements not found!');
+                return;
+            }
+
+            // Send message function
+            async function sendMessage() {
+                console.log('🚀 sendMessage() called');
+
+                const message = messageInput.value.trim();
+                console.log('📝 Message:', message);
+
+                if (!message) {
+                    console.log('⚠️ Empty message');
+                    return;
+                }
+
+                // Disable button
+                sendButton.disabled = true;
+                messageInput.disabled = true;
+
+                // Add user message
+                const userDiv = document.createElement('div');
+                userDiv.className = 'message user-message';
+                userDiv.textContent = message;
+                chatMessages.appendChild(userDiv);
+                messageInput.value = '';
+
+                // Simulate bot response
+                setTimeout(() => {
+                    const botDiv = document.createElement('div');
+                    botDiv.className = 'message bot-message';
+                    botDiv.textContent = 'This is a test response. The Send button is WORKING! ✅';
+                    chatMessages.appendChild(botDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                    // Re-enable
+                    sendButton.disabled = false;
+                    messageInput.disabled = false;
+                    messageInput.focus();
+                }, 500);
+
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            // Add event listeners
+            sendButton.addEventListener('click', () => {
+                console.log('🖱️ Button clicked!');
+                sendMessage();
+            });
+
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    console.log('⌨️ Enter pressed!');
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            console.log('✅ Event listeners attached');
+            console.log('👉 Click the Send button or press Enter to test!');
+
+            // Auto-focus input
+            messageInput.focus();
+        });
+    </script>
+</body>
+</html>
