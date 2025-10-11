@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8002';
 
 // State management
 let sessionId = null;

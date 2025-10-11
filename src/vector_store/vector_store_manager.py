@@ -106,3 +106,26 @@ class VectorStoreManager:
         if hasattr(self.vector_store, 'get_all_documents'):
             return self.vector_store.get_all_documents()
         return []
+
+    def delete_document(self, doc_id: int) -> bool:
+        """
+        Delete a document by its ID.
+
+        Args:
+            doc_id: ID of the document to delete
+
+        Returns:
+            True if deleted successfully
+        """
+        if hasattr(self.vector_store, 'delete_document'):
+            success = self.vector_store.delete_document(doc_id)
+            if success:
+                self.save()
+            return success
+        return False
+
+    def clear_all_documents(self):
+        """Clear all documents from the vector store."""
+        if hasattr(self.vector_store, 'clear_all'):
+            self.vector_store.clear_all()
+            self.save()

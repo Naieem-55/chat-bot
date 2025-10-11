@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Management - AI Chatbot</title>
+    <link rel="stylesheet" href="documents.css">
+</head>
+<body>
+    <div class="documents-container">
+        <!-- Header -->
+        <header class="documents-header">
+            <div class="header-content">
+                <h1>📚 Document Management</h1>
+                <p class="header-subtitle">Upload, manage, and organize your knowledge base</p>
+            </div>
+            <div class="header-actions">
+                <a href="index.html" class="btn btn-secondary">💬 Back to Chat</a>
+                <a href="analytics.html" class="btn btn-secondary">📊 Analytics</a>
+            </div>
+        </header>
+
+        <!-- Stats Section -->
+        <div class="stats-section">
+            <div class="stat-card">
+                <div class="stat-icon">📄</div>
+                <div class="stat-info">
+                    <div class="stat-label">Total Documents</div>
+                    <div class="stat-value" id="totalDocs">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔢</div>
+                <div class="stat-info">
+                    <div class="stat-label">Vector Store Size</div>
+                    <div class="stat-value" id="vectorCount">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💾</div>
+                <div class="stat-info">
+                    <div class="stat-label">Index Type</div>
+                    <div class="stat-value" id="indexType">FAISS</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <div class="upload-card">
+                <h2>📤 Upload Document</h2>
+                <p class="upload-description">Supported formats: PDF, TXT, HTML, MD</p>
+
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <p class="upload-text">Drag & drop a file here or click to browse</p>
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.html,.md" hidden>
+                    <button class="btn btn-primary" id="browseBtn">Browse Files</button>
+                </div>
+
+                <div class="upload-progress" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="progress-text" id="progressText">Uploading...</p>
+                </div>
+
+                <div class="upload-result" id="uploadResult" style="display: none;"></div>
+            </div>
+
+            <div class="upload-card">
+                <h2>🌐 Load from URL</h2>
+                <p class="upload-description">Extract content from a website</p>
+
+                <div class="url-input-container">
+                    <input
+                        type="url"
+                        id="urlInput"
+                        placeholder="https://example.com/page"
+                        class="url-input"
+                    >
+                    <button class="btn btn-primary" id="urlUploadBtn">Load URL</button>
+                </div>
+
+                <div class="url-result" id="urlResult" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Documents List -->
+        <div class="documents-list-section">
+            <div class="section-header">
+                <h2>📋 Document Library</h2>
+                <div class="section-actions">
+                    <button class="btn btn-secondary" id="refreshBtn">🔄 Refresh</button>
+                    <button class="btn btn-danger" id="clearAllBtn">🗑️ Clear All</button>
+                </div>
+            </div>
+
+            <div class="documents-list" id="documentsList">
+                <div class="loading">Loading documents...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="documents.js"></script>
+</body>
+</html>

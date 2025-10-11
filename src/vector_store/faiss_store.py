@@ -166,9 +166,47 @@ class FAISSVectorStore:
             List of dictionaries with document content and metadata
         """
         result = []
-        for doc in self.documents:
+        for idx, doc in enumerate(self.documents):
             result.append({
+                'id': idx,
                 'content': doc.page_content,
                 'metadata': doc.metadata
             })
         return result
+
+    def delete_document(self, doc_id: int) -> bool:
+        """
+        Delete a document by its ID (index).
+
+        Args:
+            doc_id: Index of the document to delete
+
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        if doc_id < 0 or doc_id >= len(self.documents):
+            return False
+
+        # Remove document
+        del self.documents[doc_id]
+
+        # Remove embedding
+        if self.document_embeddings is not None:
+            self.document_embeddings = np.delete(self.document_embeddings, doc_id, axis=0)
+
+        # Rebuild FAISS index with remaining embeddings
+        self.index = faiss.IndexFlatL2(self.embedding_dimension)
+        if len(self.document_embeddings) > 0:
+            self.index.add(self.document_embeddings.astype('float32'))
+
+        print(f"✓ Deleted document {doc_id}")
+        print(f"  Remaining documents: {len(self.documents)}")
+
+        return True
+
+    def clear_all(self):
+        """Clear all documents from the vector store."""
+        self.index = faiss.IndexFlatL2(self.embedding_dimension)
+        self.documents = []
+        self.document_embeddings = None
+        print("✓ Cleared all documents from vector store")

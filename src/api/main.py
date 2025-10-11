@@ -1,11 +1,14 @@
 """FastAPI application for the chatbot."""
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
+import tempfile
+import os
+from pathlib import Path
 
 from ..config import settings
 from ..vector_store.vector_store_manager import VectorStoreManager
@@ -16,6 +19,8 @@ from ..rag_pipeline import RAGPipeline
 from ..feedback.feedback_manager import FeedbackManager
 from ..feedback.hallucination_detector import HallucinationDetector
 from ..suggestions.question_generator import QuestionGenerator, PeopleAlsoAsked
+from ..data_ingestion.document_loader import DocumentLoader
+from ..data_ingestion.text_processor import TextProcessor
 import uuid
 
 # Setup logging
@@ -541,6 +546,240 @@ async def get_people_also_asked(request: FollowUpRequest):
 
     except Exception as e:
         logger.error(f"Error generating PAA: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Document Management endpoints
+@app.get("/documents/list")
+async def list_documents():
+    """
+    Get list of all documents in the vector store.
+
+    Returns:
+        List of documents with metadata
+    """
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        documents = rag_pipeline.vector_store.get_all_documents()
+
+        # Format response
+        formatted_docs = []
+        for doc in documents:
+            metadata = doc.get('metadata', {})
+            formatted_docs.append({
+                'id': doc['id'],
+                'filename': metadata.get('filename', metadata.get('title', 'Unknown')),
+                'source': metadata.get('source', 'Unknown'),
+                'type': metadata.get('type', Path(metadata.get('source', '')).suffix.lstrip('.')),
+                'category': metadata.get('category', 'General'),
+                'content_preview': doc['content'][:200] + '...' if len(doc['content']) > 200 else doc['content'],
+                'content_length': len(doc['content'])
+            })
+
+        return {
+            "total": len(formatted_docs),
+            "documents": formatted_docs
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/documents/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """
+    Upload and index a document.
+
+    Args:
+        file: Document file to upload
+
+    Returns:
+        Upload status and document info
+    """
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Check file extension
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext not in DocumentLoader.SUPPORTED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file_ext}. Supported: {list(DocumentLoader.SUPPORTED_EXTENSIONS.keys())}"
+            )
+
+        # Save uploaded file to temporary location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            tmp_file_path = tmp_file.name
+
+        try:
+            # Load document
+            logger.info(f"Loading document: {file.filename}")
+            documents = DocumentLoader.load_document(tmp_file_path)
+
+            # Process documents (chunk)
+            text_processor = TextProcessor(
+                chunk_size=settings.chunk_size,
+                chunk_overlap=settings.chunk_overlap
+            )
+            processed_docs = text_processor.process_pipeline(documents)
+
+            # Index into vector store
+            rag_pipeline.vector_store.index_documents(processed_docs)
+            rag_pipeline.vector_store.save()
+
+            # Reinitialize BM25 if enabled
+            if hasattr(rag_pipeline, 'bm25_retriever') and rag_pipeline.bm25_retriever:
+                from ..retrieval.bm25_retriever import BM25Retriever
+                all_docs = rag_pipeline.vector_store.get_all_documents()
+                rag_pipeline.bm25_retriever = BM25Retriever(all_docs, top_k=settings.top_k_documents)
+                logger.info("✓ Reinitialized BM25 retriever")
+
+            return {
+                "message": "Document uploaded and indexed successfully",
+                "filename": file.filename,
+                "chunks_created": len(processed_docs),
+                "total_documents": len(rag_pipeline.vector_store.get_all_documents())
+            }
+
+        finally:
+            # Clean up temporary file
+            os.unlink(tmp_file_path)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/documents/{doc_id}")
+async def delete_document(doc_id: int):
+    """
+    Delete a document from the vector store.
+
+    Args:
+        doc_id: ID of the document to delete
+
+    Returns:
+        Deletion status
+    """
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        success = rag_pipeline.vector_store.delete_document(doc_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+        # Reinitialize BM25 if enabled
+        if hasattr(rag_pipeline, 'bm25_retriever') and rag_pipeline.bm25_retriever:
+            from ..retrieval.bm25_retriever import BM25Retriever
+            all_docs = rag_pipeline.vector_store.get_all_documents()
+            if all_docs:
+                rag_pipeline.bm25_retriever = BM25Retriever(all_docs, top_k=settings.top_k_documents)
+            else:
+                rag_pipeline.bm25_retriever = None
+            logger.info("✓ Reinitialized BM25 retriever")
+
+        return {
+            "message": "Document deleted successfully",
+            "doc_id": doc_id,
+            "remaining_documents": len(rag_pipeline.vector_store.get_all_documents())
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/documents/clear")
+async def clear_all_documents():
+    """
+    Clear all documents from the vector store.
+
+    Returns:
+        Confirmation message
+    """
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        rag_pipeline.vector_store.clear_all_documents()
+
+        # Clear BM25
+        if hasattr(rag_pipeline, 'bm25_retriever'):
+            rag_pipeline.bm25_retriever = None
+
+        return {
+            "message": "All documents cleared successfully",
+            "remaining_documents": 0
+        }
+
+    except Exception as e:
+        logger.error(f"Error clearing documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/documents/upload-url")
+async def upload_from_url(url: str):
+    """
+    Ingest content from a URL.
+
+    Args:
+        url: Website URL to scrape and index
+
+    Returns:
+        Upload status
+    """
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Load from URL
+        logger.info(f"Loading content from URL: {url}")
+        documents = DocumentLoader.load_from_url(url)
+
+        if not documents:
+            raise HTTPException(status_code=400, detail="No content extracted from URL")
+
+        # Process documents
+        text_processor = TextProcessor(
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap
+        )
+        processed_docs = text_processor.process_pipeline(documents)
+
+        # Index into vector store
+        rag_pipeline.vector_store.index_documents(processed_docs)
+        rag_pipeline.vector_store.save()
+
+        # Reinitialize BM25 if enabled
+        if hasattr(rag_pipeline, 'bm25_retriever') and rag_pipeline.bm25_retriever:
+            from ..retrieval.bm25_retriever import BM25Retriever
+            all_docs = rag_pipeline.vector_store.get_all_documents()
+            rag_pipeline.bm25_retriever = BM25Retriever(all_docs, top_k=settings.top_k_documents)
+            logger.info("✓ Reinitialized BM25 retriever")
+
+        return {
+            "message": "URL content indexed successfully",
+            "url": url,
+            "chunks_created": len(processed_docs),
+            "total_documents": len(rag_pipeline.vector_store.get_all_documents())
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading from URL: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
