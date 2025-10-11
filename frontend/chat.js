@@ -674,6 +674,9 @@ async function sendMessage() {
         // Stream the response with typing effect (slower for readability)
         await streamText(contentDiv, data.response, 35);
 
+        // Speak the response if voice mode is enabled
+        speakText(data.response);
+
         // Add sources after streaming completes
         if (data.sources && data.sources.length > 0) {
             const sourcesDiv = document.createElement('div');
@@ -929,15 +932,18 @@ function createSessionItem(session) {
     item.innerHTML = `
         <div class="session-title">${session.title}</div>
         <div class="session-metadata">
-            <span class="session-time">🕒 ${timeAgo}</span>
-            <span class="session-message-count">💬 ${session.message_count}</span>
+            <span class="session-time"><i class="far fa-clock"></i> ${timeAgo}</span>
+            <span class="session-message-count"><i class="far fa-comments"></i> ${session.message_count}</span>
         </div>
-        <button class="session-delete" title="Delete conversation">🗑️</button>
+        <button class="session-delete" title="Delete conversation">
+            <i class="fas fa-trash-alt"></i>
+        </button>
     `;
 
     // Click to switch session
     item.addEventListener('click', (e) => {
-        if (!e.target.classList.contains('session-delete')) {
+        // Check if click was on delete button or its icon
+        if (!e.target.closest('.session-delete')) {
             switchToSession(session.session_id);
         }
     });
@@ -960,7 +966,9 @@ function renderEmptyState() {
 
     sessionsList.innerHTML = `
         <div class="sessions-empty">
-            <div class="sessions-empty-icon">💬</div>
+            <div class="sessions-empty-icon">
+                <i class="far fa-comments"></i>
+            </div>
             <div class="sessions-empty-text">No conversations yet.<br>Start a new chat!</div>
         </div>
     `;
@@ -1096,8 +1104,213 @@ async function deleteSession(sessionIdToDelete) {
     }
 }
 
+// ===== VOICE CHAT FUNCTIONALITY =====
+
+// Voice state
+let voiceModeEnabled = false;
+let isListening = false;
+let recognition = null;
+let synthesis = window.speechSynthesis;
+
+// Initialize speech recognition
+function initializeVoiceRecognition() {
+    // Check if browser supports speech recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        console.warn('⚠️ Speech recognition not supported in this browser');
+        return false;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+        console.log('🎤 Voice recognition started');
+        isListening = true;
+        updateVoiceUI(true);
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('📝 Transcript:', transcript);
+
+        // Fill input with transcript
+        messageInput.value = transcript;
+
+        // Auto-send if voice mode is enabled
+        if (voiceModeEnabled) {
+            setTimeout(() => sendMessage(), 500);
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.error('❌ Speech recognition error:', event.error);
+        isListening = false;
+        updateVoiceUI(false);
+
+        if (event.error === 'not-allowed') {
+            alert('Microphone access denied. Please enable microphone permissions in your browser settings.');
+        }
+    };
+
+    recognition.onend = () => {
+        console.log('🎤 Voice recognition ended');
+        isListening = false;
+        updateVoiceUI(false);
+    };
+
+    return true;
+}
+
+// Start voice recognition
+function startVoiceRecognition() {
+    if (!recognition) {
+        const initialized = initializeVoiceRecognition();
+        if (!initialized) {
+            alert('Voice recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
+            return;
+        }
+    }
+
+    if (isListening) {
+        recognition.stop();
+        return;
+    }
+
+    try {
+        recognition.start();
+    } catch (error) {
+        console.error('Error starting recognition:', error);
+        if (error.name === 'InvalidStateError') {
+            // Recognition is already running, stop it first
+            recognition.stop();
+            setTimeout(() => recognition.start(), 100);
+        }
+    }
+}
+
+// Update voice UI
+function updateVoiceUI(listening) {
+    const voiceInputBtn = document.getElementById('voiceInputBtn');
+    const voiceStatus = document.getElementById('voiceStatus');
+
+    if (listening) {
+        voiceInputBtn.classList.add('listening');
+        voiceStatus.style.display = 'block';
+    } else {
+        voiceInputBtn.classList.remove('listening');
+        voiceStatus.style.display = 'none';
+    }
+}
+
+// Toggle voice mode (auto text-to-speech)
+function toggleVoiceMode() {
+    voiceModeEnabled = !voiceModeEnabled;
+
+    const voiceToggle = document.getElementById('voiceToggle');
+    const voiceIcon = voiceToggle.querySelector('.voice-icon');
+
+    if (voiceModeEnabled) {
+        voiceToggle.classList.add('active');
+        voiceIcon.className = 'fas fa-volume-up voice-icon';
+        document.body.classList.add('voice-mode-active');
+        console.log('🔊 Voice mode enabled');
+    } else {
+        voiceToggle.classList.remove('active');
+        voiceIcon.className = 'fas fa-volume-mute voice-icon';
+        document.body.classList.remove('voice-mode-active');
+
+        // Stop any ongoing speech
+        if (synthesis.speaking) {
+            synthesis.cancel();
+        }
+        console.log('🔇 Voice mode disabled');
+    }
+}
+
+// Text-to-speech function
+function speakText(text) {
+    if (!voiceModeEnabled) return;
+
+    // Cancel any ongoing speech
+    if (synthesis.speaking) {
+        synthesis.cancel();
+    }
+
+    // Clean text for speech (remove markdown, code blocks, etc.)
+    let cleanText = text
+        .replace(/```[\s\S]*?```/g, ' code block ') // Replace code blocks
+        .replace(/`[^`]+`/g, ' code ') // Replace inline code
+        .replace(/\*\*(.+?)\*\*/g, '$1') // Remove bold
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Convert links
+        .replace(/#+\s+/g, '') // Remove heading markers
+        .replace(/[*_~]/g, '') // Remove other markdown
+        .trim();
+
+    // Split into sentences for better pacing
+    const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
+
+    sentences.forEach((sentence, index) => {
+        const utterance = new SpeechSynthesisUtterance(sentence.trim());
+        utterance.rate = 1.1; // Slightly faster
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        // Select a good voice (prefer female voice for consistency)
+        const voices = synthesis.getVoices();
+        const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Microsoft Zira'));
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+
+        if (index === sentences.length - 1) {
+            utterance.onend = () => {
+                console.log('✅ Speech completed');
+            };
+        }
+
+        synthesis.speak(utterance);
+    });
+}
+
+// Initialize voice controls
+function initializeVoiceControls() {
+    const voiceInputBtn = document.getElementById('voiceInputBtn');
+    const voiceToggle = document.getElementById('voiceToggle');
+
+    // Voice input button click
+    if (voiceInputBtn) {
+        voiceInputBtn.addEventListener('click', () => {
+            startVoiceRecognition();
+        });
+    }
+
+    // Voice mode toggle click
+    if (voiceToggle) {
+        voiceToggle.addEventListener('click', () => {
+            toggleVoiceMode();
+        });
+    }
+
+    // Load voices (required for some browsers)
+    if (synthesis.onvoiceschanged !== undefined) {
+        synthesis.onvoiceschanged = () => {
+            synthesis.getVoices();
+        };
+    }
+
+    console.log('✅ Voice controls initialized');
+}
+
+// Modify the existing sendMessage to include voice output
+const originalSendMessage = sendMessage;
+
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
     initialize();
     initializeSidebar();
+    initializeVoiceControls();
 });
