@@ -293,53 +293,68 @@ function extractFilename(path) {
     return filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 }
 
-// Format message with paragraphs, lists, headings, and emojis
+// Format message with paragraphs, lists, headings, code blocks
 function formatMessage(text) {
     if (!text) return '';
 
-    // Clean up extra whitespace and normalize newlines
-    text = text.replace(/\n\n\s+\n/g, '\n\n'); // Remove lines with only spaces
-    text = text.replace(/\n{3,}/g, '\n\n'); // Replace 3+ newlines with 2
+    // Step 1: Extract code blocks first (```language\ncode\n```)
+    const codeBlocks = [];
+    const codeBlockPlaceholder = '___CODE_BLOCK___';
 
-    // Split into paragraphs
+    text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
+        const blockId = codeBlocks.length;
+        codeBlocks.push({
+            language: language || 'text',
+            code: code.trim()
+        });
+        return `${codeBlockPlaceholder}${blockId}${codeBlockPlaceholder}`;
+    });
+
+    // Step 2: Handle inline code (`code`)
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Step 3: Clean up extra whitespace
+    text = text.replace(/\n\n\s+\n/g, '\n\n');
+    text = text.replace(/\n{3,}/g, '\n\n');
+
+    // Step 4: Split into paragraphs
     let paragraphs = text.split('\n\n');
 
-    // Format each paragraph
+    // Step 5: Format each paragraph
     paragraphs = paragraphs.map(p => {
         p = p.trim();
         if (!p) return '';
 
-        // Check if paragraph contains heading + text (e.g., "## Heading\ntext...")
-        // Split heading from content if they're in same chunk
-        let result = '';
+        // Check if this is a code block placeholder
+        const codeBlockMatch = p.match(/___CODE_BLOCK___(\d+)___CODE_BLOCK___/);
+        if (codeBlockMatch) {
+            const blockIndex = parseInt(codeBlockMatch[1]);
+            const block = codeBlocks[blockIndex];
+            return createCodeBlock(block.language, block.code);
+        }
 
-        // Handle headings (## or ###)
+        // Handle headings
         if (p.startsWith('###')) {
             const lines = p.split('\n');
             const heading = lines[0];
             const rest = lines.slice(1).join('\n').trim();
-            result = `<h4 class="response-heading">${heading.substring(3).trim()}</h4>`;
-            if (rest) {
-                result += `<p>${rest}</p>`;
-            }
+            let result = `<h4 class="response-heading">${heading.substring(3).trim()}</h4>`;
+            if (rest) result += `<p>${rest}</p>`;
             return result;
         }
         if (p.startsWith('##')) {
             const lines = p.split('\n');
             const heading = lines[0];
             const rest = lines.slice(1).join('\n').trim();
-            result = `<h3 class="response-heading">${heading.substring(2).trim()}</h3>`;
+            let result = `<h3 class="response-heading">${heading.substring(2).trim()}</h3>`;
             if (rest) {
-                // Check if rest contains bullets - if so, process as list
                 if (rest.includes('\n*') || rest.startsWith('*')) {
                     const restLines = rest.split('\n');
                     const listItems = restLines
                         .filter(line => line.trim().startsWith('*'))
                         .map(line => `<li>${line.trim().substring(1).trim()}</li>`)
                         .join('');
-                    if (listItems) {
-                        result += `<ul class="formatted-list">${listItems}</ul>`;
-                    }
+                    if (listItems) result += `<ul class="formatted-list">${listItems}</ul>`;
                 } else {
                     result += `<p>${rest}</p>`;
                 }
@@ -347,7 +362,7 @@ function formatMessage(text) {
             return result;
         }
 
-        // Handle bold text (**text**)
+        // Handle bold text
         p = p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
         // Handle numbered lists
@@ -370,16 +385,10 @@ function formatMessage(text) {
                 }
             });
 
-            if (regularText) {
-                listItems.push(`<p>${regularText}</p>`);
-            }
-
+            if (regularText) listItems.push(`<p>${regularText}</p>`);
             const listContent = listItems.filter(item => item.startsWith('<li>')).join('');
             const textContent = listItems.filter(item => item.startsWith('<p>')).join('');
-
-            if (listContent) {
-                return textContent + `<ol class="formatted-list">${listContent}</ol>`;
-            }
+            if (listContent) return textContent + `<ol class="formatted-list">${listContent}</ol>`;
             return textContent;
         }
 
@@ -396,7 +405,6 @@ function formatMessage(text) {
                         listItems.push(`<p>${regularText}</p>`);
                         regularText = '';
                     }
-                    // Remove bold markdown from list items
                     let itemText = line.substring(1).trim();
                     itemText = itemText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
                     listItems.push(`<li>${itemText}</li>`);
@@ -405,16 +413,10 @@ function formatMessage(text) {
                 }
             });
 
-            if (regularText) {
-                listItems.push(`<p>${regularText}</p>`);
-            }
-
+            if (regularText) listItems.push(`<p>${regularText}</p>`);
             const listContent = listItems.filter(item => item.startsWith('<li>')).join('');
             const textContent = listItems.filter(item => item.startsWith('<p>')).join('');
-
-            if (listContent) {
-                return textContent + `<ul class="formatted-list">${listContent}</ul>`;
-            }
+            if (listContent) return textContent + `<ul class="formatted-list">${listContent}</ul>`;
             return textContent;
         }
 
@@ -423,6 +425,54 @@ function formatMessage(text) {
     });
 
     return paragraphs.join('');
+}
+
+// Create a code block with syntax highlighting and copy button
+function createCodeBlock(language, code) {
+    const escapedCode = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    const blockId = 'code-' + Math.random().toString(36).substr(2, 9);
+
+    return `
+        <div class="code-block-wrapper">
+            <div class="code-block-header">
+                <span class="code-language">${language}</span>
+                <button class="code-copy-btn" onclick="copyCode('${blockId}')">
+                    <span>Copy code</span>
+                </button>
+            </div>
+            <div class="code-block-content">
+                <pre><code id="${blockId}">${escapedCode}</code></pre>
+            </div>
+        </div>
+    `;
+}
+
+// Copy code to clipboard
+function copyCode(blockId) {
+    const codeElement = document.getElementById(blockId);
+    if (!codeElement) return;
+
+    const code = codeElement.textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        // Find the copy button and update its state
+        const codeBlock = codeElement.closest('.code-block-wrapper');
+        const btn = codeBlock.querySelector('.code-copy-btn');
+        const originalHTML = btn.innerHTML;
+
+        btn.innerHTML = '<span>✓ Copied!</span>';
+        btn.classList.add('copied');
+
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy code:', err);
+    });
 }
 
 // Create a streaming bot message element

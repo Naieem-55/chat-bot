@@ -693,3 +693,117 @@ body {
 .chat-container.has-messages .suggested-questions {
     display: none;
 }
+
+/* Code Blocks - ChatGPT Style */
+.message-content code {
+    background: #1a1a1a;
+    color: #e5e5e5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 13px;
+    border: 1px solid #2a2a2a;
+}
+
+.code-block-wrapper {
+    margin: 16px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+}
+
+.code-block-header {
+    background: #1a1a1a;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.code-language {
+    color: #a0a0a0;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.code-copy-btn {
+    background: #252525;
+    border: 1px solid #3a3a3a;
+    color: #e5e5e5;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.code-copy-btn:hover {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+}
+
+.code-copy-btn.copied {
+    background: #1a4d2e;
+    border-color: #27ae60;
+    color: #27ae60;
+}
+
+.code-block-content {
+    padding: 14px 16px;
+    overflow-x: auto;
+    background: #0d0d0d;
+}
+
+.code-block-content pre {
+    margin: 0;
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #e5e5e5;
+    white-space: pre;
+    word-wrap: normal;
+}
+
+.code-block-content code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+}
+
+/* Syntax Highlighting - Basic */
+.code-keyword { color: #ff79c6; font-weight: 600; }
+.code-string { color: #50fa7b; }
+.code-number { color: #bd93f9; }
+.code-comment { color: #6272a4; font-style: italic; }
+.code-function { color: #8be9fd; }
+.code-class { color: #ffb86c; }
+.code-operator { color: #ff79c6; }
+.code-variable { color: #f1fa8c; }
+
+/* Scrollbar for code blocks */
+.code-block-content::-webkit-scrollbar {
+    height: 8px;
+}
+
+.code-block-content::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+}
+
+.code-block-content::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+    border-radius: 4px;
+}
+
+.code-block-content::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+}

@@ -202,6 +202,17 @@ MANDATORY FORMATTING RULES:
 4. NEVER add extra spaces or empty lines
 5. Use bullet points for lists (start with "* ")
 6. Maximum 3 sentences per paragraph
+7. Use inline code for small code snippets (`code`)
+8. Use code blocks for multi-line code examples (```language\\ncode\\n```)
+
+CODE FORMATTING RULES:
+✓ For inline code, use backticks: `variableName`
+✓ For code blocks, use triple backticks with language:
+```python
+def hello():
+    print("Hello World")
+```
+✓ Supported languages: python, javascript, html, css, bash, java, etc.
 
 EXAMPLE (Good Response):
 ---
@@ -211,12 +222,15 @@ HTML stands for HyperText Markup Language. It describes the structure of web pag
 
 **Basic Syntax:**
 * Elements have opening and closing tags
-* Tags are enclosed in angle brackets
+* Tags are enclosed in angle brackets like `<tag>content</tag>`
 * Content goes between the tags
 
 **Example:**
-* Heading: `<h1>Title</h1>`
-* Paragraph: `<p>Text here</p>`
+
+```html
+<h1>My First Heading</h1>
+<p>My first paragraph.</p>
+```
 
 You can learn more from HTML tutorials and documentation.
 ---
@@ -231,10 +245,12 @@ STRICT RULES:
 ✓ ALWAYS add blank line after opening
 ✓ ALWAYS break information into multiple paragraphs
 ✓ ALWAYS use bullet points for lists of items
+✓ ALWAYS use code blocks for code examples
 ✓ NEVER write more than 3 sentences in one paragraph
 ✓ NEVER write everything in a single block of text
 
 If you have multiple points to make, use bullet points with "* " prefix.
+If you have code to show, use code blocks with the language specified.
 If you have explanations, use separate short paragraphs with blank lines."""
 
     @staticmethod
