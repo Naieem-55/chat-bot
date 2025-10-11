@@ -240,14 +240,7 @@ body {
     50%, 100% { opacity: 0; }
 }
 
-.bot-message.streaming {
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.95; }
-}
+/* Removed streaming pulse animation to prevent flickering */
 
 /* Enhanced sources display */
 .message-sources {
@@ -1296,5 +1289,190 @@ body.voice-mode-active .voice-toggle {
     .voice-toggle {
         font-size: 18px;
         padding: 6px;
+    }
+}
+
+/* ===== EXPORT CHAT FEATURE ===== */
+
+/* Export Button */
+.export-btn {
+    background: transparent;
+    border: 1px solid #3a3a3a;
+    color: #ffffff;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.export-btn:hover {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+    transform: scale(1.05);
+}
+
+.export-btn:active {
+    transform: scale(0.95);
+}
+
+/* Export Modal */
+.export-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2000;
+    animation: modalFadeIn 0.3s ease-out;
+}
+
+.export-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1999;
+    backdrop-filter: blur(4px);
+    animation: overlayFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -48%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@keyframes overlayFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.export-modal-content {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    width: 500px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+
+.export-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #2a2a2a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.export-modal-header h3 {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.export-modal-close {
+    background: transparent;
+    border: none;
+    color: #a0a0a0;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.export-modal-close:hover {
+    background: #2a2a2a;
+    color: #ffffff;
+}
+
+.export-modal-body {
+    padding: 24px;
+}
+
+.export-modal-body p {
+    color: #a0a0a0;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.export-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.export-option-btn {
+    background: #252525;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 20px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+}
+
+.export-option-btn:hover {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.export-option-btn:active {
+    transform: translateY(0);
+}
+
+.export-option-btn i {
+    font-size: 32px;
+    color: #3498db;
+}
+
+.export-option-title {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.export-option-desc {
+    color: #808080;
+    font-size: 12px;
+}
+
+/* Mobile responsive for export modal */
+@media (max-width: 768px) {
+    .export-modal-content {
+        width: 90vw;
+    }
+
+    .export-options {
+        grid-template-columns: 1fr;
+    }
+
+    .export-option-btn {
+        padding: 16px 12px;
+    }
+
+    .export-option-btn i {
+        font-size: 28px;
     }
 }

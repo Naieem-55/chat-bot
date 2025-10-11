@@ -537,48 +537,54 @@ function createStreamingMessage() {
     return { messageDiv, contentDiv };
 }
 
-// Stream text with typing effect (character by character like ChatGPT)
-async function streamText(contentDiv, text, speed = 30) {
-    const cursor = contentDiv.querySelector('.typing-cursor');
-    if (cursor) cursor.remove();
+// Stream text with typing effect (word by word - smoother, less flickering)
+async function streamText(contentDiv, text, speed = 50) {
+    // Create a plain text container for streaming
+    const streamingSpan = document.createElement('span');
+    streamingSpan.style.whiteSpace = 'pre-wrap';
+    contentDiv.innerHTML = '';
+    contentDiv.appendChild(streamingSpan);
 
+    const cursorSpan = document.createElement('span');
+    cursorSpan.className = 'typing-cursor';
+    cursorSpan.textContent = '|';
+    contentDiv.appendChild(cursorSpan);
+
+    // Split text into words and whitespace
+    const parts = text.match(/\S+|\s+/g) || [];
     let currentText = '';
 
-    // Type character by character for more human-like effect
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        currentText += char;
+    // Type word by word for smoother effect
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        currentText += part;
 
-        // Update display with cursor
-        contentDiv.innerHTML = formatMessage(currentText) + '<span class="typing-cursor">|</span>';
+        // Update display with plain text
+        streamingSpan.textContent = currentText;
         scrollToBottom();
 
-        // Variable speed based on character for human-like typing
+        // Variable speed based on content
         let delay = speed;
 
-        // Longer pauses for natural rhythm
-        if (char === '.' || char === '!' || char === '?') {
-            delay = speed * 15; // Long pause after sentences (450ms)
-        } else if (char === ',' || char === ';') {
-            delay = speed * 8; // Medium pause after commas (240ms)
-        } else if (char === ':') {
-            delay = speed * 6; // Shorter pause after colons (180ms)
-        } else if (char === '\n') {
-            delay = speed * 10; // Pause at line breaks (300ms)
-        } else if (char === ' ') {
-            delay = speed * 1.5; // Slightly longer for spaces (45ms)
+        // Pause after punctuation
+        if (part.match(/[.!?]$/)) {
+            delay = speed * 8; // Longer pause after sentences
+        } else if (part.match(/[,;:]$/)) {
+            delay = speed * 4; // Medium pause after commas
+        } else if (part === '\n' || part.includes('\n')) {
+            delay = speed * 6; // Pause at line breaks
+        } else if (part.trim() === '') {
+            delay = speed * 0.3; // Very short for spaces
         } else {
-            // Add some randomness for human-like typing (25-35ms)
-            delay = speed + (Math.random() * 10 - 5);
+            // Add slight randomness for natural feel
+            delay = speed + (Math.random() * 20 - 10);
         }
 
         await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-    // Remove cursor after complete
-    const finalCursor = contentDiv.querySelector('.typing-cursor');
-    if (finalCursor) finalCursor.remove();
-
+    // Remove cursor and format the complete text
+    cursorSpan.remove();
     contentDiv.innerHTML = formatMessage(text);
 }
 
@@ -671,8 +677,8 @@ async function sendMessage() {
             messageDiv.insertBefore(reformulationDiv, contentDiv);
         }
 
-        // Stream the response with typing effect (slower for readability)
-        await streamText(contentDiv, data.response, 35);
+        // Stream the response with typing effect (word by word)
+        await streamText(contentDiv, data.response, 50);
 
         // Speak the response if voice mode is enabled
         speakText(data.response);
@@ -775,9 +781,6 @@ async function sendMessage() {
 
             messageDiv.appendChild(feedbackDiv);
         }
-
-        // Remove streaming class
-        messageDiv.classList.remove('streaming');
 
         // Hide suggested questions after first message
         if (typeof hideSuggestedQuestions !== 'undefined') {
@@ -1305,12 +1308,271 @@ function initializeVoiceControls() {
     console.log('✅ Voice controls initialized');
 }
 
-// Modify the existing sendMessage to include voice output
-const originalSendMessage = sendMessage;
+// ===== EXPORT CHAT FUNCTIONALITY =====
+
+// Initialize export controls
+function initializeExportControls() {
+    const exportBtn = document.getElementById('exportBtn');
+    const exportModal = document.getElementById('exportModal');
+    const exportModalOverlay = document.getElementById('exportModalOverlay');
+    const exportModalClose = document.getElementById('exportModalClose');
+    const exportOptionBtns = document.querySelectorAll('.export-option-btn');
+
+    // Open export modal
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            openExportModal();
+        });
+    }
+
+    // Close modal
+    if (exportModalClose) {
+        exportModalClose.addEventListener('click', () => {
+            closeExportModal();
+        });
+    }
+
+    if (exportModalOverlay) {
+        exportModalOverlay.addEventListener('click', () => {
+            closeExportModal();
+        });
+    }
+
+    // Export format buttons
+    exportOptionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const format = btn.dataset.format;
+            exportChat(format);
+            closeExportModal();
+        });
+    });
+
+    console.log('✅ Export controls initialized');
+}
+
+// Open export modal
+function openExportModal() {
+    const exportModal = document.getElementById('exportModal');
+    const exportModalOverlay = document.getElementById('exportModalOverlay');
+
+    exportModal.style.display = 'block';
+    exportModalOverlay.style.display = 'block';
+}
+
+// Close export modal
+function closeExportModal() {
+    const exportModal = document.getElementById('exportModal');
+    const exportModalOverlay = document.getElementById('exportModalOverlay');
+
+    exportModal.style.display = 'none';
+    exportModalOverlay.style.display = 'none';
+}
+
+// Get current conversation messages
+function getConversationMessages() {
+    const messages = [];
+    const messageElements = document.querySelectorAll('.chat-messages .message');
+
+    messageElements.forEach(msgEl => {
+        if (msgEl.classList.contains('loading')) return;
+
+        const isUser = msgEl.classList.contains('user-message');
+        const role = isUser ? 'user' : 'assistant';
+        const content = msgEl.textContent.trim();
+
+        messages.push({ role, content });
+    });
+
+    return messages;
+}
+
+// Export chat in different formats
+async function exportChat(format) {
+    const messages = getConversationMessages();
+
+    if (messages.length === 0) {
+        alert('No messages to export. Start a conversation first!');
+        return;
+    }
+
+    let exportContent = '';
+    let filename = '';
+    let mimeType = '';
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+
+    switch (format) {
+        case 'json':
+            exportContent = JSON.stringify({
+                session_id: sessionId,
+                exported_at: new Date().toISOString(),
+                messages: messages
+            }, null, 2);
+            filename = `chat-export-${timestamp}.json`;
+            mimeType = 'application/json';
+            break;
+
+        case 'txt':
+            exportContent = messages.map(msg => {
+                const label = msg.role === 'user' ? 'You' : 'AI Assistant';
+                return `${label}:\n${msg.content}\n`;
+            }).join('\n---\n\n');
+            filename = `chat-export-${timestamp}.txt`;
+            mimeType = 'text/plain';
+            break;
+
+        case 'md':
+            exportContent = `# Chat Conversation Export\n\n`;
+            exportContent += `**Exported:** ${new Date().toLocaleString()}\n\n`;
+            exportContent += `---\n\n`;
+            exportContent += messages.map(msg => {
+                const label = msg.role === 'user' ? '**You**' : '**AI Assistant**';
+                return `### ${label}\n\n${msg.content}\n`;
+            }).join('\n---\n\n');
+            filename = `chat-export-${timestamp}.md`;
+            mimeType = 'text/markdown';
+            break;
+
+        case 'html':
+            exportContent = generateHTMLExport(messages, timestamp);
+            filename = `chat-export-${timestamp}.html`;
+            mimeType = 'text/html';
+            break;
+
+        default:
+            console.error('Unknown export format:', format);
+            return;
+    }
+
+    // Download the file
+    downloadFile(exportContent, filename, mimeType);
+    console.log(`✅ Exported chat as ${format.toUpperCase()}`);
+}
+
+// Generate HTML export
+function generateHTMLExport(messages, timestamp) {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Export - ${new Date().toLocaleDateString()}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e5e5e5;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        .export-info {
+            color: #808080;
+            font-size: 14px;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .message {
+            margin-bottom: 24px;
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid #2a2a2a;
+        }
+        .message.user {
+            background: #2a2a2a;
+            margin-left: 60px;
+        }
+        .message.assistant {
+            background: #252525;
+            margin-right: 60px;
+        }
+        .message-role {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .message.user .message-role {
+            color: #3498db;
+        }
+        .message.assistant .message-role {
+            color: #27ae60;
+        }
+        .message-content {
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #2a2a2a;
+            text-align: center;
+            color: #606060;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chat Conversation Export</h1>
+        <div class="export-info">
+            Exported: ${new Date().toLocaleString()}<br>
+            Session ID: ${sessionId || 'N/A'}<br>
+            Total Messages: ${messages.length}
+        </div>
+        ${messages.map(msg => `
+            <div class="message ${msg.role}">
+                <div class="message-role">${msg.role === 'user' ? 'You' : 'AI Assistant'}</div>
+                <div class="message-content">${escapeHtml(msg.content)}</div>
+            </div>
+        `).join('')}
+        <div class="footer">
+            Generated by AI Chatbot • Powered by Groq API
+        </div>
+    </div>
+</body>
+</html>`;
+    return html;
+}
+
+// Escape HTML entities
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Download file
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
 
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
     initialize();
     initializeSidebar();
     initializeVoiceControls();
+    initializeExportControls();
 });

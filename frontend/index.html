@@ -49,6 +49,9 @@
                 <p>Ask anything!</p>
             </div>
             <div class="header-links">
+                <button class="export-btn" id="exportBtn" title="Export Chat">
+                    <i class="fas fa-download"></i>
+                </button>
                 <button class="voice-toggle" id="voiceToggle" title="Toggle Voice Mode">
                     <i class="fas fa-volume-mute voice-icon"></i>
                 </button>
@@ -120,6 +123,44 @@
             <div class="spinner"></div>
         </div>
     </template>
+
+    <!-- Export Modal -->
+    <div class="export-modal" id="exportModal" style="display: none;">
+        <div class="export-modal-content">
+            <div class="export-modal-header">
+                <h3>Export Conversation</h3>
+                <button class="export-modal-close" id="exportModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="export-modal-body">
+                <p>Choose a format to export your conversation:</p>
+                <div class="export-options">
+                    <button class="export-option-btn" data-format="json">
+                        <i class="fas fa-code"></i>
+                        <span class="export-option-title">JSON</span>
+                        <span class="export-option-desc">Structured data format</span>
+                    </button>
+                    <button class="export-option-btn" data-format="txt">
+                        <i class="fas fa-file-alt"></i>
+                        <span class="export-option-title">Text</span>
+                        <span class="export-option-desc">Plain text format</span>
+                    </button>
+                    <button class="export-option-btn" data-format="md">
+                        <i class="fab fa-markdown"></i>
+                        <span class="export-option-title">Markdown</span>
+                        <span class="export-option-desc">Markdown formatted</span>
+                    </button>
+                    <button class="export-option-btn" data-format="html">
+                        <i class="fas fa-file-code"></i>
+                        <span class="export-option-title">HTML</span>
+                        <span class="export-option-desc">Web page format</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="export-modal-overlay" id="exportModalOverlay" style="display: none;"></div>
 
     <!-- Temporarily disabled to test freeze issue -->
     <!-- <script src="suggestions.js?v=1.1"></script> -->
