@@ -49,6 +49,9 @@
                 <p>Ask anything!</p>
             </div>
             <div class="header-links">
+                <button class="memory-btn" id="memoryBtn" title="View Memory">
+                    <i class="fas fa-brain"></i>
+                </button>
                 <button class="export-btn" id="exportBtn" title="Export Chat">
                     <i class="fas fa-download"></i>
                 </button>
@@ -161,6 +164,73 @@
         </div>
     </div>
     <div class="export-modal-overlay" id="exportModalOverlay" style="display: none;"></div>
+
+    <!-- Memory Modal -->
+    <div class="memory-modal" id="memoryModal" style="display: none;">
+        <div class="memory-modal-content">
+            <div class="memory-modal-header">
+                <h3><i class="fas fa-brain"></i> Long-Term Memory</h3>
+                <button class="memory-modal-close" id="memoryModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="memory-modal-body">
+                <!-- Memory Stats -->
+                <div class="memory-stats" id="memoryStats">
+                    <div class="memory-stat-card">
+                        <i class="fas fa-lightbulb"></i>
+                        <div class="memory-stat-value" id="factsCount">0</div>
+                        <div class="memory-stat-label">Facts Learned</div>
+                    </div>
+                    <div class="memory-stat-card">
+                        <i class="fas fa-sliders-h"></i>
+                        <div class="memory-stat-value" id="preferencesCount">0</div>
+                        <div class="memory-stat-label">Preferences</div>
+                    </div>
+                    <div class="memory-stat-card">
+                        <i class="fas fa-comments"></i>
+                        <div class="memory-stat-value" id="summariesCount">0</div>
+                        <div class="memory-stat-label">Conversations</div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="memory-tabs">
+                    <button class="memory-tab active" data-tab="facts">Facts</button>
+                    <button class="memory-tab" data-tab="preferences">Preferences</button>
+                    <button class="memory-tab" data-tab="summaries">Summaries</button>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="memory-tab-content active" id="factsTab">
+                    <div class="memory-list" id="factsList">
+                        <!-- Facts will be populated here -->
+                    </div>
+                </div>
+
+                <div class="memory-tab-content" id="preferencesTab">
+                    <div class="memory-list" id="preferencesList">
+                        <!-- Preferences will be populated here -->
+                    </div>
+                </div>
+
+                <div class="memory-tab-content" id="summariesTab">
+                    <div class="memory-list" id="summariesList">
+                        <!-- Summaries will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="memory-actions">
+                    <button class="memory-clear-btn" id="memoryClearBtn">
+                        <i class="fas fa-trash-alt"></i>
+                        Clear All Memory
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="memory-modal-overlay" id="memoryModalOverlay" style="display: none;"></div>
 
     <!-- Temporarily disabled to test freeze issue -->
     <!-- <script src="suggestions.js?v=1.1"></script> -->

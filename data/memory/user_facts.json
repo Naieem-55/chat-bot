@@ -1,0 +1,34 @@
+{
+  "memory_test_456": [
+    {
+      "fact": "User likes programming in python",
+      "category": "conversation",
+      "timestamp": "2025-10-12T10:18:55.515618",
+      "id": "701113e0"
+    }
+  ],
+  "memory_test_789": [
+    {
+      "fact": "User prefers dark mode themes",
+      "category": "conversation",
+      "timestamp": "2025-10-12T10:19:05.365326",
+      "id": "c8eb8c32"
+    }
+  ],
+  "memory_full_test": [
+    {
+      "fact": "User enjoys reading science fiction books",
+      "category": "conversation",
+      "timestamp": "2025-10-12T10:20:34.233830",
+      "id": "371282e7"
+    }
+  ],
+  "final_memory_test": [
+    {
+      "fact": "User loves playing guitar",
+      "category": "conversation",
+      "timestamp": "2025-10-12T10:25:24.275162",
+      "id": "3db39f63"
+    }
+  ]
+}

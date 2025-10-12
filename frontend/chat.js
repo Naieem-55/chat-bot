@@ -356,10 +356,43 @@ function formatMessage(text) {
         return `${codeBlockPlaceholder}${blockId}${codeBlockPlaceholder}`;
     });
 
-    // Step 2: Handle inline code (`code`)
+    // Step 2: Extract rich components (alerts, progress bars, badges)
+    const richComponents = [];
+    const richComponentPlaceholder = '___RICH_COMPONENT___';
+
+    // Alert boxes: [!INFO], [!WARNING], [!SUCCESS], [!ERROR]
+    text = text.replace(/\[!(INFO|WARNING|SUCCESS|ERROR)\]\s*([\s\S]*?)(?=\[!|$)/gi, (match, type, content) => {
+        const componentId = richComponents.length;
+        richComponents.push(createAlertBox(type.toLowerCase(), content.trim()));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Progress bars: [PROGRESS:75] or [PROGRESS:75:Loading...]
+    text = text.replace(/\[PROGRESS:(\d+)(?::([^\]]+))?\]/gi, (match, value, label) => {
+        const componentId = richComponents.length;
+        richComponents.push(createProgressBar(parseInt(value), label || ''));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Badges: [BADGE:Status:success] or [BADGE:New:info]
+    text = text.replace(/\[BADGE:([^:]+):(\w+)\]/gi, (match, text, type) => {
+        const componentId = richComponents.length;
+        richComponents.push(createBadge(text, type));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Markdown tables
+    const tablePattern = /(\|[^\n]+\|\n)(\|[-:\s|]+\|\n)((?:\|[^\n]+\|\n?)+)/g;
+    text = text.replace(tablePattern, (match) => {
+        const componentId = richComponents.length;
+        richComponents.push(createTable(match));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Step 3: Handle inline code (`code`)
     text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-    // Step 3: Clean up extra whitespace
+    // Step 4: Clean up extra whitespace
     text = text.replace(/\n\n\s+\n/g, '\n\n');
     text = text.replace(/\n{3,}/g, '\n\n');
 
@@ -377,6 +410,22 @@ function formatMessage(text) {
             const blockIndex = parseInt(codeBlockMatch[1]);
             const block = codeBlocks[blockIndex];
             return createCodeBlock(block.language, block.code);
+        }
+
+        // Check if this is a rich component placeholder
+        const richComponentMatch = p.match(/___RICH_COMPONENT___(\d+)___RICH_COMPONENT___/);
+        if (richComponentMatch) {
+            const componentIndex = parseInt(richComponentMatch[1]);
+            return richComponents[componentIndex];
+        }
+
+        // Handle blockquotes (>)
+        if (p.startsWith('>')) {
+            const quoteLines = p.split('\n')
+                .filter(line => line.trim().startsWith('>'))
+                .map(line => line.trim().substring(1).trim())
+                .join('<br>');
+            return `<div class="rich-blockquote"><div class="quote-icon">💬</div><div class="quote-content">${quoteLines}</div></div>`;
         }
 
         // Handle headings
@@ -471,6 +520,90 @@ function formatMessage(text) {
     });
 
     return paragraphs.join('');
+}
+
+// Create alert box component
+function createAlertBox(type, content) {
+    const icons = {
+        info: 'ℹ️',
+        warning: '⚠️',
+        success: '✅',
+        error: '❌'
+    };
+
+    const titles = {
+        info: 'Info',
+        warning: 'Warning',
+        success: 'Success',
+        error: 'Error'
+    };
+
+    return `
+        <div class="rich-alert rich-alert-${type}">
+            <div class="alert-icon">${icons[type] || 'ℹ️'}</div>
+            <div class="alert-content">
+                <div class="alert-title">${titles[type] || 'Info'}</div>
+                <div class="alert-message">${content}</div>
+            </div>
+        </div>
+    `;
+}
+
+// Create progress bar component
+function createProgressBar(value, label) {
+    const percentage = Math.min(100, Math.max(0, value));
+    const color = percentage >= 75 ? '#27ae60' : percentage >= 50 ? '#f39c12' : percentage >= 25 ? '#3498db' : '#e74c3c';
+
+    return `
+        <div class="rich-progress">
+            ${label ? `<div class="progress-label">${label}</div>` : ''}
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: ${percentage}%; background: ${color};">
+                    <span class="progress-text">${percentage}%</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create badge component
+function createBadge(text, type) {
+    const badgeClass = `rich-badge rich-badge-${type}`;
+    return `<span class="${badgeClass}">${text}</span>`;
+}
+
+// Create table component
+function createTable(markdown) {
+    const lines = markdown.trim().split('\n');
+    if (lines.length < 2) return markdown;
+
+    const headers = lines[0].split('|').map(h => h.trim()).filter(h => h);
+    const rows = lines.slice(2).map(row =>
+        row.split('|').map(cell => cell.trim()).filter(cell => cell !== '')
+    );
+
+    let tableHTML = '<div class="rich-table-wrapper"><table class="rich-table">';
+
+    // Headers
+    tableHTML += '<thead><tr>';
+    headers.forEach(header => {
+        tableHTML += `<th>${header}</th>`;
+    });
+    tableHTML += '</tr></thead>';
+
+    // Body
+    tableHTML += '<tbody>';
+    rows.forEach(row => {
+        tableHTML += '<tr>';
+        row.forEach(cell => {
+            tableHTML += `<td>${cell}</td>`;
+        });
+        tableHTML += '</tr>';
+    });
+    tableHTML += '</tbody>';
+
+    tableHTML += '</table></div>';
+    return tableHTML;
 }
 
 // Create a code block with syntax highlighting and copy button

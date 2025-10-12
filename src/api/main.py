@@ -67,6 +67,9 @@ class ChatResponse(BaseModel):
     sources: List[Dict[str, Any]]
     context_used: bool
     hallucination_risk: Optional[Dict[str, Any]] = None
+    reformulated_query: Optional[str] = None
+    memory_used: Optional[bool] = None
+    memory_stats: Optional[Dict[str, int]] = None
 
 
 class SessionCreateResponse(BaseModel):
@@ -780,6 +783,132 @@ async def upload_from_url(url: str):
         raise
     except Exception as e:
         logger.error(f"Error uploading from URL: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Memory Management endpoints
+@app.get("/memory/{session_id}/facts")
+async def get_user_facts(session_id: str, category: Optional[str] = None):
+    """
+    Get facts stored about the user.
+
+    Args:
+        session_id: User session ID
+        category: Optional category filter
+
+    Returns:
+        List of user facts
+    """
+    if not rag_pipeline or not rag_pipeline.memory_manager:
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
+
+    try:
+        facts = rag_pipeline.memory_manager.get_user_facts(session_id, category)
+        return {
+            "session_id": session_id,
+            "facts": facts,
+            "count": len(facts)
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving user facts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/memory/{session_id}/preferences")
+async def get_user_preferences(session_id: str):
+    """Get all user preferences."""
+    if not rag_pipeline or not rag_pipeline.memory_manager:
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
+
+    try:
+        preferences = rag_pipeline.memory_manager.get_all_preferences(session_id)
+        return {
+            "session_id": session_id,
+            "preferences": preferences,
+            "count": len(preferences)
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving preferences: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class PreferenceRequest(BaseModel):
+    """Preference storage request."""
+    key: str
+    value: Any
+
+
+@app.post("/memory/{session_id}/preference")
+async def store_user_preference(session_id: str, request: PreferenceRequest):
+    """Store a user preference."""
+    if not rag_pipeline or not rag_pipeline.memory_manager:
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
+
+    try:
+        rag_pipeline.memory_manager.store_preference(
+            session_id,
+            request.key,
+            request.value
+        )
+        return {
+            "message": "Preference stored successfully",
+            "session_id": session_id,
+            "key": request.key
+        }
+    except Exception as e:
+        logger.error(f"Error storing preference: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/memory/{session_id}/summaries")
+async def get_conversation_summaries(session_id: str, limit: int = 10):
+    """Get conversation summaries for a user."""
+    if not rag_pipeline or not rag_pipeline.memory_manager:
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
+
+    try:
+        summaries = rag_pipeline.memory_manager.get_conversation_summaries(session_id, limit)
+        return {
+            "session_id": session_id,
+            "summaries": summaries,
+            "count": len(summaries)
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving summaries: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/memory/{session_id}/stats")
+async def get_memory_stats(session_id: str):
+    """Get memory statistics for a user."""
+    if not rag_pipeline or not rag_pipeline.memory_manager:
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
+
+    try:
+        stats = rag_pipeline.memory_manager.get_memory_stats(session_id)
+        return {
+            "session_id": session_id,
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving memory stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/memory/{session_id}")
+async def clear_user_memory(session_id: str):
+    """Clear all memory for a specific user."""
+    if not rag_pipeline or not rag_pipeline.memory_manager:
+        raise HTTPException(status_code=503, detail="Memory service not initialized")
+
+    try:
+        rag_pipeline.memory_manager.clear_user_memory(session_id)
+        return {
+            "message": "User memory cleared successfully",
+            "session_id": session_id
+        }
+    except Exception as e:
+        logger.error(f"Error clearing user memory: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

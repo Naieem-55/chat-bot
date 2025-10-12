@@ -9,6 +9,7 @@ from .llm.claude_client import ClaudeClient
 from .llm.huggingface_client import HuggingFaceClient, PromptTemplate
 from .session.session_manager import SessionManager
 from .query.query_reformulator import QueryReformulator, HybridRetrieval
+from .memory.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ class RAGPipeline:
         session_manager: SessionManager,
         top_k_documents: int = 5,
         use_query_reformulation: bool = True,
-        use_bm25: bool = True
+        use_bm25: bool = True,
+        use_long_term_memory: bool = True
     ):
         """
         Initialize RAG pipeline.
@@ -35,12 +37,20 @@ class RAGPipeline:
             top_k_documents: Number of documents to retrieve
             use_query_reformulation: Whether to use query reformulation
             use_bm25: Whether to use BM25 keyword search in hybrid retrieval
+            use_long_term_memory: Whether to use long-term memory and context fusion
         """
         self.vector_store = vector_store_manager
         self.retriever = DocumentRetriever(vector_store_manager, top_k=top_k_documents)
         self.claude_client = claude_client
         self.session_manager = session_manager
         self.prompt_template = PromptTemplate
+
+        # Long-term memory
+        self.use_long_term_memory = use_long_term_memory
+        self.memory_manager = None
+        if use_long_term_memory:
+            self.memory_manager = MemoryManager()
+            logger.info("✓ Long-term memory enabled with context fusion")
 
         # BM25 keyword retrieval
         self.bm25_retriever = None
@@ -113,8 +123,26 @@ class RAGPipeline:
             # Vector search only
             retrieval_results = self.retriever.retrieve(reformulated_query)
 
-        # Step 4: Format context
-        context = self.retriever.format_context(retrieval_results)
+        # Step 4: Format context with memory fusion
+        memory_used = False  # Initialize first
+        if self.use_long_term_memory and self.memory_manager:
+            try:
+                # Use context fusion to combine retrieved docs with long-term memory
+                context = self.memory_manager.fuse_context(
+                    query,
+                    retrieval_results,
+                    session_id
+                )
+                # Flag to indicate memory was used
+                memory_used = True
+            except Exception as e:
+                logger.warning(f"Memory fusion failed, using standard context: {e}")
+                context = self.retriever.format_context(retrieval_results)
+                memory_used = False
+        else:
+            # Standard context formatting
+            context = self.retriever.format_context(retrieval_results)
+            memory_used = False
 
         # Step 5: Build messages for LLM (use original query for response)
         messages = self._build_messages(query, context, history)
@@ -134,7 +162,13 @@ class RAGPipeline:
         if not stream:  # For streaming, this happens after full response
             self.session_manager.add_message(session_id, 'assistant', response_text)
 
-        # Step 8: Prepare response
+        # Step 8: Extract and store facts from conversation (if long-term memory enabled)
+        if self.use_long_term_memory and self.memory_manager and not stream:
+            facts = self.memory_manager.extract_facts_from_conversation(query, response_text)
+            for fact in facts:
+                self.memory_manager.store_user_fact(session_id, fact, category="conversation")
+
+        # Step 9: Prepare response
         retrieval_metadata = self.retriever.get_retrieval_metadata(retrieval_results)
 
         response_data = {
@@ -147,6 +181,14 @@ class RAGPipeline:
         # Add reformulation info if used
         if self.use_query_reformulation and reformulated_query != original_query:
             response_data['reformulated_query'] = reformulated_query
+
+        # Add memory info if enabled (with try/except for safety)
+        if self.use_long_term_memory and self.memory_manager:
+            try:
+                response_data['memory_used'] = memory_used
+                response_data['memory_stats'] = self.memory_manager.get_memory_stats(session_id)
+            except Exception as e:
+                logger.warning(f"Could not add memory stats: {e}")
 
         return response_data
 

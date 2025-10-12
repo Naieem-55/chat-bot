@@ -32,8 +32,8 @@ class Settings(BaseSettings):
 
     # API Configuration
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
-    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    api_port: int = 8002
+    cors_origins: List[str] = ["http://localhost:3000", "http://localhost:8002"]
 
     # Session Management
     session_memory_type: str = "memory"  # "memory" or "redis"
