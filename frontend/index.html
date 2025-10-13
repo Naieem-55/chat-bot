@@ -8,6 +8,7 @@
     <link rel="apple-touch-icon" href="icons/logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="voice-chat.css">
 </head>
 <body>
     <!-- Sidebar Toggle Button -->
@@ -103,6 +104,9 @@
         <div class="chat-input-container">
             <button class="voice-input-btn" id="voiceInputBtn" title="Voice Input">
                 <i class="fas fa-microphone mic-icon"></i>
+            </button>
+            <button class="voice-chat-btn" id="floatingVoiceBtn" onclick="voiceChatManager.toggleVoiceMode()" title="Voice Chat Mode">
+                <i class="fas fa-phone-alt"></i>
             </button>
             <input
                 type="text"
@@ -240,8 +244,75 @@
     </div>
     <div class="memory-modal-overlay" id="memoryModalOverlay" style="display: none;"></div>
 
+    <!-- Voice Chat Modal -->
+    <div class="voice-chat-modal" id="voiceChatModal" style="display: none;">
+        <div class="voice-chat-content">
+            <div class="voice-chat-header">
+                <h3><i class="fas fa-microphone-alt"></i> Voice Conversation</h3>
+                <button class="voice-chat-close" onclick="voiceChatManager.deactivateVoiceMode()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="voice-chat-body">
+                <!-- Visual Indicator -->
+                <div class="voice-visual-container">
+                    <div class="voice-visual-indicator" id="voiceVisualIndicator">
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="voice-status-container">
+                    <div class="voice-status-indicator idle" id="voiceStatusIndicator">
+                        <i class="fas fa-microphone"></i>
+                    </div>
+                    <div class="voice-status-text" id="voiceStatusText">Ready - Say something...</div>
+                </div>
+
+                <!-- Transcripts -->
+                <div class="voice-transcripts">
+                    <div class="transcript-box user-transcript-box">
+                        <div class="transcript-label">You said:</div>
+                        <div class="transcript-text" id="userTranscript">...</div>
+                        <div class="transcript-interim" id="interimTranscript"></div>
+                    </div>
+
+                    <div class="transcript-box bot-transcript-box">
+                        <div class="transcript-label">AI response:</div>
+                        <div class="transcript-text" id="botResponse">...</div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="voice-controls">
+                    <button class="voice-control-btn stop-btn" id="stopSpeakingBtn" title="Stop AI Speaking">
+                        <i class="fas fa-stop-circle"></i>
+                        <span>Interrupt</span>
+                    </button>
+
+                    <button class="voice-control-btn mute-btn" id="voiceModeBtn">
+                        <i class="fas fa-microphone-slash"></i>
+                        <span class="voice-mode-text">Voice Mode: ON</span>
+                    </button>
+                </div>
+
+                <!-- Info -->
+                <div class="voice-info">
+                    <p><i class="fas fa-info-circle"></i> Full duplex mode: You can speak anytime, even while AI is responding!</p>
+                    <p><i class="fas fa-lightbulb"></i> Click "Interrupt" to stop AI and start speaking immediately</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Temporarily disabled to test freeze issue -->
     <!-- <script src="suggestions.js?v=1.1"></script> -->
     <script src="chat.js?v=3.4"></script>
+    <script src="voice-chat.js"></script>
 </body>
 </html>
