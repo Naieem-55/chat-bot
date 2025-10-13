@@ -15,6 +15,7 @@ class ConversationSession:
         self.created_at = datetime.now()
         self.last_active = datetime.now()
         self.metadata: Dict[str, any] = {}
+        self.pinned: bool = False
 
     def add_message(self, role: str, content: str):
         """Add a message to the conversation history."""
@@ -196,11 +197,12 @@ class SessionManager:
                 'title': session.metadata.get('title', title),
                 'message_count': len(session.messages),
                 'created_at': session.created_at.isoformat(),
-                'last_active': session.last_active.isoformat()
+                'last_active': session.last_active.isoformat(),
+                'pinned': session.pinned
             })
 
-        # Sort by last_active (most recent first)
-        sessions_list.sort(key=lambda x: x['last_active'], reverse=True)
+        # Sort by pinned status first (pinned=True comes first), then by last_active (most recent first)
+        sessions_list.sort(key=lambda x: (-x['pinned'], -datetime.fromisoformat(x['last_active']).timestamp()))
         return sessions_list
 
     def update_session_title(self, session_id: str, title: str) -> bool:
@@ -220,3 +222,54 @@ class SessionManager:
 
         session.metadata['title'] = title
         return True
+
+    def pin_session(self, session_id: str) -> bool:
+        """
+        Pin a session to the top of the list.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if successful, False if session not found
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return False
+
+        session.pinned = True
+        return True
+
+    def unpin_session(self, session_id: str) -> bool:
+        """
+        Unpin a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if successful, False if session not found
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return False
+
+        session.pinned = False
+        return True
+
+    def toggle_pin_session(self, session_id: str) -> Optional[bool]:
+        """
+        Toggle pin status of a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            New pin status (True/False) or None if session not found
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return None
+
+        session.pinned = not session.pinned
+        return session.pinned

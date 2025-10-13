@@ -1051,6 +1051,68 @@ body {
     color: #e74c3c;
 }
 
+/* Session Actions Container */
+.session-actions {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.session-item:hover .session-actions {
+    opacity: 1;
+}
+
+/* Session Pin Button */
+.session-pin {
+    background: transparent;
+    border: none;
+    color: #808080;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.session-pin:hover {
+    background: #3a3a3a;
+    color: #f39c12;
+}
+
+/* Pinned session styles */
+.session-item.pinned {
+    border-color: #f39c12;
+    background: linear-gradient(135deg, #252525 0%, #2a2520 100%);
+}
+
+.session-item.pinned .session-actions {
+    opacity: 1;
+}
+
+.session-item.pinned .session-pin {
+    color: #f39c12;
+}
+
+.pin-icon {
+    color: #f39c12;
+    font-size: 12px;
+    margin-left: 4px;
+    animation: pinPulse 2s ease-in-out infinite;
+}
+
+@keyframes pinPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
 /* Empty State */
 .sessions-empty {
     text-align: center;

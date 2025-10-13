@@ -942,10 +942,28 @@ async def update_session_title(session_id: str, request: UpdateTitleRequest):
     """Update the title of a session."""
     if not rag_pipeline:
         raise HTTPException(status_code=503, detail="Service not initialized")
-    
+
     success = rag_pipeline.session_manager.update_session_title(session_id, request.title)
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return {"message": "Title updated successfully", "session_id": session_id, "title": request.title}
+
+
+@app.put("/session/{session_id}/pin")
+async def toggle_pin_session(session_id: str):
+    """Toggle pin status of a session."""
+    if not rag_pipeline:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    pinned_status = rag_pipeline.session_manager.toggle_pin_session(session_id)
+
+    if pinned_status is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {
+        "message": "Pin status updated successfully",
+        "session_id": session_id,
+        "pinned": pinned_status
+    }

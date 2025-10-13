@@ -1200,24 +1200,42 @@ function createSessionItem(session) {
     }
 
     const timeAgo = formatTimeAgo(session.last_active);
+    const isPinned = session.pinned || false;
 
     item.innerHTML = `
-        <div class="session-title">${session.title}</div>
+        <div class="session-title">${session.title}${isPinned ? ' <i class="fas fa-thumbtack pin-icon"></i>' : ''}</div>
         <div class="session-metadata">
             <span class="session-time"><i class="far fa-clock"></i> ${timeAgo}</span>
             <span class="session-message-count"><i class="far fa-comments"></i> ${session.message_count}</span>
         </div>
-        <button class="session-delete" title="Delete conversation">
-            <i class="fas fa-trash-alt"></i>
-        </button>
+        <div class="session-actions">
+            <button class="session-pin" title="${isPinned ? 'Unpin conversation' : 'Pin conversation'}">
+                <i class="fas ${isPinned ? 'fa-thumbtack' : 'fa-thumbtack'}"></i>
+            </button>
+            <button class="session-delete" title="Delete conversation">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
     `;
+
+    // Add pinned class if session is pinned
+    if (isPinned) {
+        item.classList.add('pinned');
+    }
 
     // Click to switch session
     item.addEventListener('click', (e) => {
-        // Check if click was on delete button or its icon
-        if (!e.target.closest('.session-delete')) {
+        // Check if click was on action buttons or their icons
+        if (!e.target.closest('.session-pin') && !e.target.closest('.session-delete')) {
             switchToSession(session.session_id);
         }
+    });
+
+    // Pin button
+    const pinBtn = item.querySelector('.session-pin');
+    pinBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await togglePinSession(session.session_id);
     });
 
     // Delete button
@@ -1342,6 +1360,29 @@ async function switchToSession(newSessionId) {
     } catch (error) {
         console.error('Error switching session:', error);
         addBotMessage('Sorry, I couldn\'t load that conversation. Please try again.');
+    }
+}
+
+// Toggle pin status of a session
+async function togglePinSession(sessionIdToPin) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/session/${sessionIdToPin}/pin`, {
+            method: 'PUT'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to toggle pin');
+        }
+
+        const data = await response.json();
+
+        // Reload sessions list to reflect new order
+        await loadSessions();
+
+        console.log(`✅ Session ${data.pinned ? 'pinned' : 'unpinned'}:`, sessionIdToPin);
+    } catch (error) {
+        console.error('Error toggling pin:', error);
+        alert('Sorry, I couldn\'t pin/unpin that conversation. Please try again.');
     }
 }
 
