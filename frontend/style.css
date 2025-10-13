@@ -1057,6 +1057,8 @@ body {
     top: 12px;
     right: 12px;
     display: flex;
+    flex-direction: row;
+    align-items: center;
     gap: 10px;
     opacity: 0;
     transition: opacity 0.2s;

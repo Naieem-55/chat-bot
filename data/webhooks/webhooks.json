@@ -1,0 +1,26 @@
+{
+  "admin-alerts": {
+    "id": "admin-alerts",
+    "type": "email",
+    "email": "naieemislam.opl@gmail.com",
+    "events": [
+      "new_message"
+    ],
+    "enabled": true,
+    "created_at": "2025-10-13T13:04:39.801364",
+    "updated_at": "2025-10-13T13:04:39.801369"
+  },
+  "main-webhook": {
+    "id": "main-webhook",
+    "type": "email",
+    "email": "naieemislam27@gmail.com",
+    "events": [
+      "new_message",
+      "error",
+      "feedback"
+    ],
+    "enabled": true,
+    "created_at": "2025-10-13T13:38:58.766828",
+    "updated_at": "2025-10-13T13:38:58.766832"
+  }
+}

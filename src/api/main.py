@@ -21,7 +21,10 @@ from ..feedback.hallucination_detector import HallucinationDetector
 from ..suggestions.question_generator import QuestionGenerator, PeopleAlsoAsked
 from ..data_ingestion.document_loader import DocumentLoader
 from ..data_ingestion.text_processor import TextProcessor
+from ..notifications.email_notifier import EmailNotifier
+from ..notifications.webhook_manager import WebhookManager
 import uuid
+from datetime import datetime
 
 # Setup logging
 logging.basicConfig(level=settings.log_level)
@@ -49,6 +52,8 @@ feedback_manager: Optional[FeedbackManager] = None
 hallucination_detector: Optional[HallucinationDetector] = None
 question_generator: Optional[QuestionGenerator] = None
 people_also_asked: Optional[PeopleAlsoAsked] = None
+email_notifier: Optional[Any] = None
+webhook_manager: Optional[Any] = None
 
 
 # Pydantic models
@@ -86,7 +91,7 @@ class HealthResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize components on startup."""
-    global rag_pipeline, feedback_manager, hallucination_detector, question_generator, people_also_asked
+    global rag_pipeline, feedback_manager, hallucination_detector, question_generator, people_also_asked, email_notifier, webhook_manager
 
     logger.info("Initializing RAG pipeline...")
 
@@ -141,9 +146,14 @@ async def startup_event():
         question_generator = QuestionGenerator()
         people_also_asked = PeopleAlsoAsked()
 
+        # Initialize notifications
+        webhook_manager = WebhookManager()
+        email_notifier = EmailNotifier(enabled=False)  # Disabled by default, configured via API
+
         logger.info("✓ RAG pipeline initialized successfully")
         logger.info("✓ Feedback system initialized")
         logger.info("✓ Question suggestions initialized")
+        logger.info("✓ Webhook notification system initialized")
 
     except Exception as e:
         logger.error(f"Failed to initialize RAG pipeline: {str(e)}")
@@ -181,6 +191,20 @@ async def create_session():
         raise HTTPException(status_code=503, detail="Service not initialized")
 
     session_id = rag_pipeline.create_session()
+
+    # Send email notifications for session_created event
+    if webhook_manager and email_notifier:
+        try:
+            webhooks = webhook_manager.get_webhooks_for_event("session_created")
+            for webhook in webhooks:
+                email_notifier.send_email(
+                    to_email=webhook['email'],
+                    subject="🆕 New Chat Session Created",
+                    body=f"A new chat session has been created.\n\nSession ID: {session_id}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+        except Exception as notif_error:
+            logger.warning(f"Failed to send session_created notification: {notif_error}")
+
     return {"session_id": session_id}
 
 
@@ -237,6 +261,20 @@ async def chat(request: ChatRequest):
             'reasons': reasons
         } if score > 0.3 else None  # Only show if medium risk or higher
 
+        # Send email notifications for new_message event
+        if webhook_manager and email_notifier:
+            try:
+                webhooks = webhook_manager.get_webhooks_for_event("new_message")
+                for webhook in webhooks:
+                    email_notifier.notify_new_message(
+                        to_email=webhook['email'],
+                        session_id=session_id,
+                        user_message=request.message,
+                        bot_response=result['response']
+                    )
+            except Exception as notif_error:
+                logger.warning(f"Failed to send email notification: {notif_error}")
+
         return ChatResponse(
             message_id=message_id,
             hallucination_risk=hallucination_risk,
@@ -245,9 +283,25 @@ async def chat(request: ChatRequest):
 
     except Exception as e:
         import traceback
-        logger.error(f"Error processing chat request: {str(e)}")
+        error_details = str(e)
+        logger.error(f"Error processing chat request: {error_details}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+
+        # Send error notifications
+        if webhook_manager and email_notifier:
+            try:
+                webhooks = webhook_manager.get_webhooks_for_event("error")
+                for webhook in webhooks:
+                    email_notifier.notify_error(
+                        to_email=webhook['email'],
+                        error_type="Chat Processing Error",
+                        error_message=error_details,
+                        session_id=request.session_id
+                    )
+            except Exception as notif_error:
+                logger.warning(f"Failed to send error notification: {notif_error}")
+
+        raise HTTPException(status_code=500, detail=error_details)
 
 
 @app.get("/session/{session_id}/history")
@@ -274,6 +328,19 @@ async def delete_session(session_id: str):
 
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # Send email notifications for session_deleted event
+    if webhook_manager and email_notifier:
+        try:
+            webhooks = webhook_manager.get_webhooks_for_event("session_deleted")
+            for webhook in webhooks:
+                email_notifier.send_email(
+                    to_email=webhook['email'],
+                    subject="🗑️ Chat Session Deleted",
+                    body=f"A chat session has been deleted.\n\nSession ID: {session_id}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+        except Exception as notif_error:
+            logger.warning(f"Failed to send session_deleted notification: {notif_error}")
 
     return {"message": "Session deleted successfully"}
 
@@ -325,6 +392,21 @@ async def submit_feedback(request: FeedbackRequest):
             hallucination_detected=is_hallucination,
             hallucination_reasons=reasons
         )
+
+        # Send email notifications for feedback event
+        if webhook_manager and email_notifier:
+            try:
+                webhooks = webhook_manager.get_webhooks_for_event("feedback")
+                for webhook in webhooks:
+                    email_notifier.notify_feedback(
+                        to_email=webhook['email'],
+                        session_id=request.session_id,
+                        message_id=request.message_id,
+                        feedback_type=request.feedback,
+                        query=request.user_query
+                    )
+            except Exception as notif_error:
+                logger.warning(f"Failed to send feedback notification: {notif_error}")
 
         return {
             "message": "Feedback recorded successfully",
@@ -967,3 +1049,288 @@ async def toggle_pin_session(session_id: str):
         "session_id": session_id,
         "pinned": pinned_status
     }
+
+
+# Webhook/Notification endpoints
+class EmailConfigRequest(BaseModel):
+    """Email configuration request."""
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str
+    smtp_password: str
+    from_email: Optional[str] = None
+
+
+class WebhookRequest(BaseModel):
+    """Webhook creation/update request."""
+    webhook_id: str
+    email: str
+    events: List[str]
+    enabled: bool = True
+
+
+@app.post("/webhooks/email/configure")
+async def configure_email_notifications(request: EmailConfigRequest):
+    """
+    Configure email notification settings.
+
+    Args:
+        request: Email configuration (SMTP settings)
+
+    Returns:
+        Configuration status
+    """
+    if not email_notifier:
+        raise HTTPException(status_code=503, detail="Email notifier not initialized")
+
+    try:
+        # Update email notifier configuration
+        email_notifier.smtp_server = request.smtp_server
+        email_notifier.smtp_port = request.smtp_port
+        email_notifier.smtp_username = request.smtp_username
+        email_notifier.smtp_password = request.smtp_password
+        email_notifier.from_email = request.from_email or request.smtp_username
+        email_notifier.enabled = True
+
+        logger.info("✓ Email notifications configured")
+
+        return {
+            "message": "Email notifications configured successfully",
+            "smtp_server": request.smtp_server,
+            "smtp_port": request.smtp_port,
+            "from_email": email_notifier.from_email,
+            "enabled": True
+        }
+
+    except Exception as e:
+        logger.error(f"Error configuring email: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/webhooks/email/test")
+async def test_email_notification(to_email: str):
+    """
+    Test email configuration by sending a test email.
+
+    Args:
+        to_email: Email address to send test to
+
+    Returns:
+        Test result
+    """
+    if not email_notifier:
+        raise HTTPException(status_code=503, detail="Email notifier not initialized")
+
+    try:
+        result = email_notifier.test_connection(to_email)
+        return result
+    except Exception as e:
+        logger.error(f"Error testing email: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/webhooks/create")
+async def create_webhook(request: WebhookRequest):
+    """
+    Create or update a webhook subscription.
+
+    Args:
+        request: Webhook configuration
+
+    Returns:
+        Created webhook configuration
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        webhook = webhook_manager.add_email_webhook(
+            webhook_id=request.webhook_id,
+            email=request.email,
+            events=request.events,
+            enabled=request.enabled
+        )
+
+        return {
+            "message": "Webhook created successfully",
+            "webhook": webhook
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/webhooks/list")
+async def list_webhooks():
+    """
+    List all configured webhooks.
+
+    Returns:
+        List of webhooks
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        webhooks = webhook_manager.list_webhooks()
+        stats = webhook_manager.get_stats()
+
+        return {
+            "webhooks": webhooks,
+            "stats": stats
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing webhooks: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/webhooks/{webhook_id}")
+async def get_webhook(webhook_id: str):
+    """
+    Get webhook configuration by ID.
+
+    Args:
+        webhook_id: Webhook identifier
+
+    Returns:
+        Webhook configuration
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        webhook = webhook_manager.get_webhook(webhook_id)
+
+        if not webhook:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+
+        return webhook
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/webhooks/{webhook_id}")
+async def delete_webhook(webhook_id: str):
+    """
+    Delete a webhook.
+
+    Args:
+        webhook_id: Webhook identifier
+
+    Returns:
+        Deletion status
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        success = webhook_manager.remove_webhook(webhook_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+
+        return {
+            "message": "Webhook deleted successfully",
+            "webhook_id": webhook_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/webhooks/{webhook_id}/enable")
+async def enable_webhook(webhook_id: str):
+    """
+    Enable a webhook.
+
+    Args:
+        webhook_id: Webhook identifier
+
+    Returns:
+        Updated status
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        success = webhook_manager.enable_webhook(webhook_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+
+        return {
+            "message": "Webhook enabled successfully",
+            "webhook_id": webhook_id,
+            "enabled": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error enabling webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/webhooks/{webhook_id}/disable")
+async def disable_webhook(webhook_id: str):
+    """
+    Disable a webhook.
+
+    Args:
+        webhook_id: Webhook identifier
+
+    Returns:
+        Updated status
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        success = webhook_manager.disable_webhook(webhook_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+
+        return {
+            "message": "Webhook disabled successfully",
+            "webhook_id": webhook_id,
+            "enabled": False
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error disabling webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/webhooks/events/available")
+async def get_available_events():
+    """
+    Get list of available events that can be subscribed to.
+
+    Returns:
+        List of available events
+    """
+    if not webhook_manager:
+        raise HTTPException(status_code=503, detail="Webhook manager not initialized")
+
+    try:
+        events = webhook_manager.get_available_events()
+        return {
+            "events": events,
+            "count": len(events)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting available events: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

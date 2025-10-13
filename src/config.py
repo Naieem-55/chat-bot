@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Email Notification Configuration
+    email_notifications_enabled: bool = False
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    from_email: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

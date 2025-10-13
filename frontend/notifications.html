@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Notifications - AI Chatbot</title>
+    <link rel="icon" type="image/png" href="icons/logo.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .notifications-page {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        .notification-card {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #3a3a3a;
+        }
+
+        .notification-card h2 {
+            color: #3498db;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .form-field {
+            margin-bottom: 20px;
+        }
+
+        .form-field label {
+            display: block;
+            color: #b0b0b0;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-field input {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-field input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.success {
+            background: rgba(39, 174, 96, 0.2);
+            border: 1px solid #27ae60;
+            color: #27ae60;
+        }
+
+        .message.error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+        }
+
+        .info-box {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            color: #b0b0b0;
+            font-size: 13px;
+        }
+
+        .info-box a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .info-box a:hover {
+            text-decoration: underline;
+        }
+
+        .back-link {
+            display: inline-block;
+            color: #3498db;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .checkbox-item label {
+            margin: 0;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="notifications-page">
+        <a href="index.html" class="back-link">← Back to Chat</a>
+
+        <h1 style="color: #fff; margin-bottom: 10px;">Email Notifications</h1>
+        <p style="color: #888; margin-bottom: 30px;">Get notified when important events happen in your chatbot</p>
+
+        <!-- Step 1: Configure Email -->
+        <div class="notification-card">
+            <h2>Step 1: Configure Email Settings</h2>
+
+            <div class="info-box">
+                <p><strong>For Gmail users:</strong></p>
+                <p>1. Use your Gmail address below</p>
+                <p>2. Generate an App Password at <a href="https://myaccount.google.com/apppasswords" target="_blank">Google Account Settings</a></p>
+                <p>3. Use the App Password (not your regular Gmail password)</p>
+            </div>
+
+            <form id="emailForm">
+                <div class="form-field">
+                    <label>Your Email Address</label>
+                    <input type="email" id="email" placeholder="your.email@gmail.com" required>
+                </div>
+
+                <div class="form-field">
+                    <label>Gmail App Password</label>
+                    <input type="password" id="password" placeholder="16-character app password" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save & Test Email</button>
+            </form>
+
+            <div id="emailMessage" class="message"></div>
+        </div>
+
+        <!-- Step 2: Enable Notifications -->
+        <div class="notification-card">
+            <h2>Step 2: Enable Notifications</h2>
+
+            <p style="color: #b0b0b0; margin-bottom: 20px;">
+                Select which events you want to be notified about:
+            </p>
+
+            <form id="notificationForm">
+                <div class="form-field">
+                    <label>Events to Monitor</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="event1" value="new_message">
+                            <label for="event1">💬 New Messages</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="event2" value="error">
+                            <label for="event2">⚠️ Errors</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="event3" value="feedback">
+                            <label for="event3">📊 User Feedback</label>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success">Enable Notifications</button>
+            </form>
+
+            <div id="notificationMessage" class="message"></div>
+        </div>
+
+        <!-- Status -->
+        <div class="notification-card">
+            <h2>Status</h2>
+            <div id="status" style="color: #888;">
+                Configure email settings first, then enable notifications.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8002';
+        let emailConfigured = false;
+        let currentEmail = '';
+
+        // Step 1: Configure and test email
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('emailMessage');
+
+            showMessage(messageDiv, 'Configuring email...', 'success');
+
+            try {
+                // Configure email
+                const configResponse = await fetch(`${API_BASE}/webhooks/email/configure`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        smtp_server: 'smtp.gmail.com',
+                        smtp_port: 587,
+                        smtp_username: email,
+                        smtp_password: password,
+                        from_email: email
+                    })
+                });
+
+                if (!configResponse.ok) {
+                    throw new Error('Failed to configure email');
+                }
+
+                // Test email
+                const testResponse = await fetch(`${API_BASE}/webhooks/email/test?to_email=${encodeURIComponent(email)}`, {
+                    method: 'POST'
+                });
+
+                const testResult = await testResponse.json();
+
+                if (testResult.success) {
+                    showMessage(messageDiv, '✓ Email configured successfully! Check your inbox for test email.', 'success');
+                    emailConfigured = true;
+                    currentEmail = email;
+                    updateStatus();
+                } else {
+                    showMessage(messageDiv, '✗ Failed to send test email. Check your credentials.', 'error');
+                }
+
+            } catch (error) {
+                showMessage(messageDiv, '✗ Error: ' + error.message, 'error');
+            }
+        });
+
+        // Step 2: Enable notifications
+        document.getElementById('notificationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!emailConfigured) {
+                showMessage(document.getElementById('notificationMessage'), '✗ Please configure email first', 'error');
+                return;
+            }
+
+            const messageDiv = document.getElementById('notificationMessage');
+            const selectedEvents = [];
+
+            // Get checked events
+            ['event1', 'event2', 'event3'].forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox.checked) {
+                    selectedEvents.push(checkbox.value);
+                }
+            });
+
+            if (selectedEvents.length === 0) {
+                showMessage(messageDiv, '✗ Please select at least one event', 'error');
+                return;
+            }
+
+            showMessage(messageDiv, 'Enabling notifications...', 'success');
+
+            try {
+                const response = await fetch(`${API_BASE}/webhooks/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        webhook_id: 'main-webhook',
+                        email: currentEmail,
+                        events: selectedEvents,
+                        enabled: true
+                    })
+                });
+
+                if (response.ok) {
+                    showMessage(messageDiv, '✓ Notifications enabled successfully!', 'success');
+                    updateStatus();
+                } else {
+                    throw new Error('Failed to create webhook');
+                }
+
+            } catch (error) {
+                showMessage(messageDiv, '✗ Error: ' + error.message, 'error');
+            }
+        });
+
+        function showMessage(element, text, type) {
+            element.textContent = text;
+            element.className = `message ${type} show`;
+        }
+
+        async function updateStatus() {
+            const statusDiv = document.getElementById('status');
+
+            if (!emailConfigured) {
+                statusDiv.innerHTML = '<span style="color: #888;">Configure email settings first, then enable notifications.</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/webhooks/list`);
+                const data = await response.json();
+
+                if (data.webhooks && data.webhooks.length > 0) {
+                    const webhook = data.webhooks[0];
+                    const eventsList = webhook.events.join(', ');
+                    statusDiv.innerHTML = `
+                        <div style="color: #27ae60;">✓ Active</div>
+                        <div style="color: #888; margin-top: 10px;">
+                            Email: ${webhook.email}<br>
+                            Events: ${eventsList}<br>
+                            Status: ${webhook.enabled ? 'Enabled' : 'Disabled'}
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = '<span style="color: #f39c12;">Email configured. Enable notifications in Step 2.</span>';
+                }
+            } catch (error) {
+                console.error('Failed to load status:', error);
+            }
+        }
+
+        // Load status on page load
+        updateStatus();
+    </script>
+</body>
+</html>
