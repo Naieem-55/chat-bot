@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    <link rel="icon" type="image/png" href="icons/logo.png">
+    <link rel="apple-touch-icon" href="icons/logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="voice-chat.css">
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Chat History">
+        <i class="fas fa-bars toggle-icon"></i>
+    </button>
+
+    <!-- Chat History Sidebar -->
+    <div class="sidebar" id="chatSidebar">
+        <div class="sidebar-header">
+            <h3>Chat History</h3>
+            <button class="sidebar-close" id="sidebarClose" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <button class="new-chat-btn" id="newChatBtn">
+            <i class="fas fa-plus btn-icon"></i>
+            <span>New Chat</span>
+        </button>
+
+        <div class="sessions-container" id="sessionsContainer">
+            <!-- Sessions will be populated here -->
+            <div class="sessions-list" id="sessionsList">
+                <!-- Session items will be inserted dynamically -->
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <small>Session timeout: 60 min</small>
+        </div>
+    </div>
+
+    <!-- Sidebar Overlay (for mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div style="text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                <img src="icons/logo.png" alt="Chatbot Logo" class="header-logo">
+                <div>
+                    <h2>AI Chatbot</h2>
+                    <p>Ask anything!</p>
+                </div>
+            </div>
+            <div class="header-links">
+                <button class="memory-btn" id="memoryBtn" title="View Memory">
+                    <i class="fas fa-brain"></i>
+                </button>
+                <button class="export-btn" id="exportBtn" title="Export Chat">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button class="voice-toggle" id="voiceToggle" title="Toggle Voice Mode">
+                    <i class="fas fa-volume-mute voice-icon"></i>
+                </button>
+                <a href="documents.html" class="analytics-link" title="Manage Documents">
+                    <i class="fas fa-book"></i>
+                </a>
+                <a href="analytics.html" class="analytics-link" title="View Analytics">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+                <a href="notifications.html" class="analytics-link" title="Notification Settings">
+                    <i class="fas fa-bell"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Suggested Questions (shown when empty) -->
+        <div class="suggested-questions" id="suggestedQuestions">
+            <div class="suggestions-header">💡 Suggested Questions</div>
+            <div class="suggestions-list" id="suggestionsList">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be inserted here -->
+        </div>
+
+        <!-- People Also Asked (shown after response) -->
+        <div class="people-also-asked" id="peopleAlsoAsked" style="display: none;">
+            <div class="paa-header">👥 People also asked:</div>
+            <div class="paa-list" id="paaList">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
+        <!-- Autocomplete Dropdown -->
+        <div class="autocomplete-dropdown" id="autocompleteDropdown" style="display: none;">
+            <!-- Will be populated dynamically -->
+        </div>
+
+        <div class="chat-input-container">
+            <button class="voice-input-btn" id="voiceInputBtn" title="Voice Input">
+                <i class="fas fa-microphone mic-icon"></i>
+            </button>
+            <button class="voice-chat-btn" id="floatingVoiceBtn" onclick="voiceChatManager.toggleVoiceMode()" title="Voice Chat Mode">
+                <i class="fas fa-phone-alt"></i>
+            </button>
+            <input
+                type="text"
+                id="messageInput"
+                placeholder="Type your message or click the mic..."
+                autocomplete="off"
+            >
+            <button id="sendButton">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+
+        <!-- Voice status indicator -->
+        <div class="voice-status" id="voiceStatus" style="display: none;">
+            <div class="voice-status-content">
+                <i class="fas fa-circle voice-pulse"></i>
+                <span class="voice-status-text">Listening...</span>
+            </div>
+        </div>
+
+        <div class="chat-footer">
+            <small>Powered by AI • Groq API</small>
+        </div>
+    </div>
+
+    <!-- Loading spinner template -->
+    <template id="loadingTemplate">
+        <div class="message bot-message loading">
+            <div class="spinner"></div>
+        </div>
+    </template>
+
+    <!-- Export Modal -->
+    <div class="export-modal" id="exportModal" style="display: none;">
+        <div class="export-modal-content">
+            <div class="export-modal-header">
+                <h3>Export Conversation</h3>
+                <button class="export-modal-close" id="exportModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="export-modal-body">
+                <p>Choose a format to export your conversation:</p>
+                <div class="export-options">
+                    <button class="export-option-btn" data-format="json">
+                        <i class="fas fa-code"></i>
+                        <span class="export-option-title">JSON</span>
+                        <span class="export-option-desc">Structured data format</span>
+                    </button>
+                    <button class="export-option-btn" data-format="txt">
+                        <i class="fas fa-file-alt"></i>
+                        <span class="export-option-title">Text</span>
+                        <span class="export-option-desc">Plain text format</span>
+                    </button>
+                    <button class="export-option-btn" data-format="md">
+                        <i class="fab fa-markdown"></i>
+                        <span class="export-option-title">Markdown</span>
+                        <span class="export-option-desc">Markdown formatted</span>
+                    </button>
+                    <button class="export-option-btn" data-format="html">
+                        <i class="fas fa-file-code"></i>
+                        <span class="export-option-title">HTML</span>
+                        <span class="export-option-desc">Web page format</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="export-modal-overlay" id="exportModalOverlay" style="display: none;"></div>
+
+    <!-- Memory Modal -->
+    <div class="memory-modal" id="memoryModal" style="display: none;">
+        <div class="memory-modal-content">
+            <div class="memory-modal-header">
+                <h3><i class="fas fa-brain"></i> Long-Term Memory</h3>
+                <button class="memory-modal-close" id="memoryModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="memory-modal-body">
+                <!-- Memory Stats -->
+                <div class="memory-stats" id="memoryStats">
+                    <div class="memory-stat-card">
+                        <i class="fas fa-lightbulb"></i>
+                        <div class="memory-stat-value" id="factsCount">0</div>
+                        <div class="memory-stat-label">Facts Learned</div>
+                    </div>
+                    <div class="memory-stat-card">
+                        <i class="fas fa-sliders-h"></i>
+                        <div class="memory-stat-value" id="preferencesCount">0</div>
+                        <div class="memory-stat-label">Preferences</div>
+                    </div>
+                    <div class="memory-stat-card">
+                        <i class="fas fa-comments"></i>
+                        <div class="memory-stat-value" id="summariesCount">0</div>
+                        <div class="memory-stat-label">Conversations</div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="memory-tabs">
+                    <button class="memory-tab active" data-tab="facts">Facts</button>
+                    <button class="memory-tab" data-tab="preferences">Preferences</button>
+                    <button class="memory-tab" data-tab="summaries">Summaries</button>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="memory-tab-content active" id="factsTab">
+                    <div class="memory-list" id="factsList">
+                        <!-- Facts will be populated here -->
+                    </div>
+                </div>
+
+                <div class="memory-tab-content" id="preferencesTab">
+                    <div class="memory-list" id="preferencesList">
+                        <!-- Preferences will be populated here -->
+                    </div>
+                </div>
+
+                <div class="memory-tab-content" id="summariesTab">
+                    <div class="memory-list" id="summariesList">
+                        <!-- Summaries will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="memory-actions">
+                    <button class="memory-clear-btn" id="memoryClearBtn">
+                        <i class="fas fa-trash-alt"></i>
+                        Clear All Memory
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="memory-modal-overlay" id="memoryModalOverlay" style="display: none;"></div>
+
+    <!-- Voice Chat Modal -->
+    <div class="voice-chat-modal" id="voiceChatModal" style="display: none;">
+        <div class="voice-chat-content">
+            <div class="voice-chat-header">
+                <h3><i class="fas fa-microphone-alt"></i> Voice Conversation</h3>
+                <button class="voice-chat-close" onclick="voiceChatManager.deactivateVoiceMode()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="voice-chat-body">
+                <!-- Visual Indicator -->
+                <div class="voice-visual-container">
+                    <div class="voice-visual-indicator" id="voiceVisualIndicator">
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                        <div class="voice-wave"></div>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="voice-status-container">
+                    <div class="voice-status-indicator idle" id="voiceStatusIndicator">
+                        <i class="fas fa-microphone"></i>
+                    </div>
+                    <div class="voice-status-text" id="voiceStatusText">Ready - Say something...</div>
+                </div>
+
+                <!-- Transcripts -->
+                <div class="voice-transcripts">
+                    <div class="transcript-box user-transcript-box">
+                        <div class="transcript-label">You said:</div>
+                        <div class="transcript-text" id="userTranscript">...</div>
+                        <div class="transcript-interim" id="interimTranscript"></div>
+                    </div>
+
+                    <div class="transcript-box bot-transcript-box">
+                        <div class="transcript-label">AI response:</div>
+                        <div class="transcript-text" id="botResponse">...</div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="voice-controls">
+                    <button class="voice-control-btn stop-btn" id="stopSpeakingBtn" title="Stop AI Speaking">
+                        <i class="fas fa-stop-circle"></i>
+                        <span>Interrupt</span>
+                    </button>
+
+                    <button class="voice-control-btn mute-btn" id="voiceModeBtn">
+                        <i class="fas fa-microphone-slash"></i>
+                        <span class="voice-mode-text">Voice Mode: ON</span>
+                    </button>
+                </div>
+
+                <!-- Info -->
+                <div class="voice-info">
+                    <p><i class="fas fa-info-circle"></i> Full duplex mode: You can speak anytime, even while AI is responding!</p>
+                    <p><i class="fas fa-lightbulb"></i> Click "Interrupt" to stop AI and start speaking immediately</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Temporarily disabled to test freeze issue -->
+    <!-- <script src="suggestions.js?v=1.1"></script> -->
+    <script src="chat.js?v=3.4"></script>
+    <script src="voice-chat.js"></script>
+</body>
+</html>

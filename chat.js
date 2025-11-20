@@ -1,0 +1,1888 @@
+// Configuration
+const API_BASE_URL = 'http://localhost:8002';
+
+// State management
+let sessionId = null;
+
+// DOM elements (initialized after DOM loads)
+let chatMessages;
+let messageInput;
+let sendButton;
+let loadingTemplate;
+
+// Initialize
+function initialize() {
+    console.log('✅ Initialize function called');
+
+    // Get DOM elements (now that DOM is loaded)
+    chatMessages = document.getElementById('chatMessages');
+    messageInput = document.getElementById('messageInput');
+    sendButton = document.getElementById('sendButton');
+    loadingTemplate = document.getElementById('loadingTemplate');
+
+    console.log('✅ Elements found:', {
+        chatMessages: !!chatMessages,
+        messageInput: !!messageInput,
+        sendButton: !!sendButton,
+        loadingTemplate: !!loadingTemplate
+    });
+
+    if (!messageInput || !sendButton || !chatMessages) {
+        console.error('❌ Required elements not found!');
+        return;
+    }
+
+    // Setup event listeners FIRST (synchronously)
+    sendButton.addEventListener('click', () => {
+        console.log('🖱️ Send button clicked!');
+        sendMessage();
+    });
+
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            console.log('⌨️ Enter key pressed!');
+            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+            if (!autocompleteDropdown || autocompleteDropdown.style.display === 'none') {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+    });
+
+    console.log('✅ Event listeners attached');
+
+    // Initialize session asynchronously (don't await, let it run in background)
+    initializeSession();
+}
+
+// Separate async function for session initialization
+async function initializeSession() {
+    try {
+        // Check if we have a saved session in localStorage
+        const savedSessionId = localStorage.getItem('currentSessionId');
+
+        if (savedSessionId) {
+            // Try to load the saved session
+            try {
+                const historyResponse = await fetch(`${API_BASE_URL}/session/${savedSessionId}/history`);
+                if (historyResponse.ok) {
+                    const data = await historyResponse.json();
+                    sessionId = savedSessionId;
+                    console.log('✅ Restored session from localStorage:', sessionId);
+
+                    // Load chat history
+                    if (data.history && data.history.length > 0) {
+                        data.history.forEach(msg => {
+                            if (msg.role === 'user') {
+                                addUserMessage(msg.content);
+                            } else if (msg.role === 'assistant') {
+                                addBotMessage(msg.content);
+                            }
+                        });
+                    } else {
+                        addBotMessage('Hello! I\'m your AI assistant. How can I help you today?');
+                    }
+
+                    // Load suggestions (from suggestions.js)
+                    if (typeof loadSuggestedQuestions !== 'undefined') {
+                        await loadSuggestedQuestions();
+                    }
+
+                    // Setup autocomplete (from suggestions.js)
+                    if (typeof setupAutocomplete !== 'undefined') {
+                        setupAutocomplete();
+                    }
+
+                    return; // Successfully restored session
+                }
+            } catch (err) {
+                console.log('⚠️ Failed to restore saved session, creating new one');
+                localStorage.removeItem('currentSessionId');
+            }
+        }
+
+        // Create a new session
+        const response = await fetch(`${API_BASE_URL}/session/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+        sessionId = data.session_id;
+
+        // Save to localStorage
+        localStorage.setItem('currentSessionId', sessionId);
+        console.log('✅ Session created:', sessionId);
+
+        // Add welcome message
+        addBotMessage('Hello! I\'m your AI assistant. How can I help you today?');
+
+        // Load suggestions (from suggestions.js)
+        if (typeof loadSuggestedQuestions !== 'undefined') {
+            await loadSuggestedQuestions();
+        }
+
+        // Setup autocomplete (from suggestions.js)
+        if (typeof setupAutocomplete !== 'undefined') {
+            setupAutocomplete();
+        }
+
+    } catch (error) {
+        console.error('❌ Failed to initialize session:', error);
+        addBotMessage('Sorry, I\'m having trouble connecting. Please refresh the page.');
+    }
+}
+
+// Add user message to chat
+function addUserMessage(message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message user-message';
+    messageDiv.textContent = message;
+    chatMessages.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// Add bot message to chat (with streaming support)
+function addBotMessage(message, sources = null, messageId = null, messageData = null, hallucinationRisk = null, reformulatedQuery = null, streaming = false) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+
+    if (!streaming) {
+        // Format message with paragraphs and markdown-like formatting
+        contentDiv.innerHTML = formatMessage(message);
+    }
+
+    messageDiv.appendChild(contentDiv);
+
+    // Add query reformulation notice if query was reformulated
+    if (reformulatedQuery) {
+        const reformulationDiv = document.createElement('div');
+        reformulationDiv.className = 'reformulation-notice';
+        reformulationDiv.innerHTML = `
+            🔄 <small>Interpreted as: "${reformulatedQuery}"</small>
+        `;
+        messageDiv.insertBefore(reformulationDiv, messageDiv.firstChild);
+    }
+
+    // Add hallucination warning if detected
+    if (hallucinationRisk && hallucinationRisk.detected) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'hallucination-warning';
+        warningDiv.innerHTML = `
+            ⚠️ <strong>${hallucinationRisk.risk_level}</strong> of Hallucination
+            <small>(Confidence: ${(hallucinationRisk.confidence_score * 100).toFixed(0)}%)</small>
+        `;
+        messageDiv.insertBefore(warningDiv, messageDiv.firstChild);
+    }
+
+    // Add sources if available (with emojis and better formatting)
+    if (sources && sources.length > 0) {
+        const sourcesDiv = document.createElement('div');
+        sourcesDiv.className = 'message-sources';
+        sourcesDiv.innerHTML = '<div class="sources-header">📚 <strong>Sources:</strong></div>';
+
+        const sourcesListDiv = document.createElement('div');
+        sourcesListDiv.className = 'sources-list';
+
+        // Group sources and remove duplicates
+        const uniqueSources = [];
+        const seenSources = new Set();
+
+        sources.forEach(source => {
+            const key = `${source.source}-${source.category || ''}`;
+            if (!seenSources.has(key)) {
+                seenSources.add(key);
+                uniqueSources.push(source);
+            }
+        });
+
+        uniqueSources.slice(0, 5).forEach((source, index) => {
+            const sourceItem = document.createElement('div');
+            sourceItem.className = 'source-item';
+
+            const emoji = getSourceEmoji(source.source, source.category);
+            const relevance = Math.round(source.relevance_score * 100);
+            const sourceName = source.category || extractFilename(source.source);
+
+            sourceItem.innerHTML = `
+                <span class="source-emoji">${emoji}</span>
+                <span class="source-name">${sourceName}</span>
+                <span class="source-relevance" title="Relevance score">${relevance}%</span>
+            `;
+
+            sourcesListDiv.appendChild(sourceItem);
+        });
+
+        sourcesDiv.appendChild(sourcesListDiv);
+        messageDiv.appendChild(sourcesDiv);
+    }
+
+    // Add feedback buttons if messageId is provided
+    if (messageId && messageData) {
+        const feedbackDiv = document.createElement('div');
+        feedbackDiv.className = 'feedback-buttons';
+        feedbackDiv.innerHTML = `
+            <button class="feedback-btn thumbs-up" data-message-id="${messageId}" data-feedback="positive" title="Helpful response">
+                👍
+            </button>
+            <button class="feedback-btn thumbs-down" data-message-id="${messageId}" data-feedback="negative" title="Not helpful">
+                👎
+            </button>
+        `;
+
+        // Add click handlers
+        feedbackDiv.querySelectorAll('.feedback-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const feedback = e.target.dataset.feedback;
+                const msgId = e.target.dataset.messageId;
+                await submitFeedback(msgId, feedback, messageData);
+
+                // Visual feedback
+                feedbackDiv.querySelectorAll('.feedback-btn').forEach(b => b.classList.remove('selected'));
+                e.target.classList.add('selected');
+                e.target.disabled = true;
+            });
+        });
+
+        messageDiv.appendChild(feedbackDiv);
+    }
+
+    chatMessages.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// Show loading indicator
+function showLoading() {
+    const loadingEl = loadingTemplate.content.cloneNode(true);
+    chatMessages.appendChild(loadingEl);
+    scrollToBottom();
+}
+
+// Remove loading indicator
+function removeLoading() {
+    const loading = chatMessages.querySelector('.loading');
+    if (loading) {
+        loading.remove();
+    }
+}
+
+// Scroll to bottom of chat
+function scrollToBottom() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Get emoji for source based on category or filename
+function getSourceEmoji(source, category) {
+    if (category) {
+        const categoryLower = category.toLowerCase();
+        if (categoryLower.includes('payment')) return '💳';
+        if (categoryLower.includes('ship')) return '📦';
+        if (categoryLower.includes('return')) return '↩️';
+        if (categoryLower.includes('order')) return '🛒';
+        if (categoryLower.includes('account')) return '👤';
+    }
+
+    // Check for URLs first
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+        if (source.includes('w3schools')) return '📚';
+        if (source.includes('github')) return '💻';
+        if (source.includes('stackoverflow')) return '💬';
+        if (source.includes('docs.') || source.includes('documentation')) return '📖';
+        return '🌐'; // Generic web link
+    }
+
+    // Check file extensions
+    if (source.includes('.pdf')) return '📄';
+    if (source.includes('.txt')) return '📝';
+    if (source.includes('.html')) return '📝';
+    if (source.includes('.md')) return '📝';
+    if (source.includes('faq')) return '❓';
+    if (source.includes('api')) return '⚙️';
+    if (source.includes('mediaconvert')) return '🎬';
+
+    return '📌';
+}
+
+// Extract filename from path or URL
+function extractFilename(path) {
+    if (!path) return 'Document';
+
+    // Handle URLs
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        try {
+            const url = new URL(path);
+            // Get the last part of the pathname
+            const pathParts = url.pathname.split('/').filter(p => p);
+            if (pathParts.length > 0) {
+                const lastPart = pathParts[pathParts.length - 1];
+                // Remove file extension and format nicely
+                return lastPart
+                    .replace(/\.[^/.]+$/, '')
+                    .replace(/[-_]/g, ' ')
+                    .replace(/\.html?$/i, '')
+                    .trim();
+            }
+            return url.hostname.replace('www.', '');
+        } catch (e) {
+            return 'Web Page';
+        }
+    }
+
+    // Handle file paths
+    const parts = path.split(/[\\/]/);
+    const filename = parts[parts.length - 1];
+    return filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+}
+
+// Format message with paragraphs, lists, headings, code blocks
+function formatMessage(text) {
+    if (!text) return '';
+
+    // Step 1: Extract code blocks first (```language\ncode\n```)
+    const codeBlocks = [];
+    const codeBlockPlaceholder = '___CODE_BLOCK___';
+
+    text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
+        const blockId = codeBlocks.length;
+        codeBlocks.push({
+            language: language || 'text',
+            code: code.trim()
+        });
+        return `${codeBlockPlaceholder}${blockId}${codeBlockPlaceholder}`;
+    });
+
+    // Step 2: Extract rich components (alerts, progress bars, badges)
+    const richComponents = [];
+    const richComponentPlaceholder = '___RICH_COMPONENT___';
+
+    // Alert boxes: [!INFO], [!WARNING], [!SUCCESS], [!ERROR]
+    text = text.replace(/\[!(INFO|WARNING|SUCCESS|ERROR)\]\s*([\s\S]*?)(?=\[!|$)/gi, (match, type, content) => {
+        const componentId = richComponents.length;
+        richComponents.push(createAlertBox(type.toLowerCase(), content.trim()));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Progress bars: [PROGRESS:75] or [PROGRESS:75:Loading...]
+    text = text.replace(/\[PROGRESS:(\d+)(?::([^\]]+))?\]/gi, (match, value, label) => {
+        const componentId = richComponents.length;
+        richComponents.push(createProgressBar(parseInt(value), label || ''));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Badges: [BADGE:Status:success] or [BADGE:New:info]
+    text = text.replace(/\[BADGE:([^:]+):(\w+)\]/gi, (match, text, type) => {
+        const componentId = richComponents.length;
+        richComponents.push(createBadge(text, type));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Markdown tables
+    const tablePattern = /(\|[^\n]+\|\n)(\|[-:\s|]+\|\n)((?:\|[^\n]+\|\n?)+)/g;
+    text = text.replace(tablePattern, (match) => {
+        const componentId = richComponents.length;
+        richComponents.push(createTable(match));
+        return `${richComponentPlaceholder}${componentId}${richComponentPlaceholder}`;
+    });
+
+    // Step 3: Handle inline code (`code`)
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Step 4: Clean up extra whitespace
+    text = text.replace(/\n\n\s+\n/g, '\n\n');
+    text = text.replace(/\n{3,}/g, '\n\n');
+
+    // Step 4: Split into paragraphs
+    let paragraphs = text.split('\n\n');
+
+    // Step 5: Format each paragraph
+    paragraphs = paragraphs.map(p => {
+        p = p.trim();
+        if (!p) return '';
+
+        // Check if this is a code block placeholder
+        const codeBlockMatch = p.match(/___CODE_BLOCK___(\d+)___CODE_BLOCK___/);
+        if (codeBlockMatch) {
+            const blockIndex = parseInt(codeBlockMatch[1]);
+            const block = codeBlocks[blockIndex];
+            return createCodeBlock(block.language, block.code);
+        }
+
+        // Check if this is a rich component placeholder
+        const richComponentMatch = p.match(/___RICH_COMPONENT___(\d+)___RICH_COMPONENT___/);
+        if (richComponentMatch) {
+            const componentIndex = parseInt(richComponentMatch[1]);
+            return richComponents[componentIndex];
+        }
+
+        // Handle blockquotes (>)
+        if (p.startsWith('>')) {
+            const quoteLines = p.split('\n')
+                .filter(line => line.trim().startsWith('>'))
+                .map(line => line.trim().substring(1).trim())
+                .join('<br>');
+            return `<div class="rich-blockquote"><div class="quote-icon">💬</div><div class="quote-content">${quoteLines}</div></div>`;
+        }
+
+        // Handle headings
+        if (p.startsWith('###')) {
+            const lines = p.split('\n');
+            const heading = lines[0];
+            const rest = lines.slice(1).join('\n').trim();
+            let result = `<h4 class="response-heading">${heading.substring(3).trim()}</h4>`;
+            if (rest) result += `<p>${rest}</p>`;
+            return result;
+        }
+        if (p.startsWith('##')) {
+            const lines = p.split('\n');
+            const heading = lines[0];
+            const rest = lines.slice(1).join('\n').trim();
+            let result = `<h3 class="response-heading">${heading.substring(2).trim()}</h3>`;
+            if (rest) {
+                if (rest.includes('\n*') || rest.startsWith('*')) {
+                    const restLines = rest.split('\n');
+                    const listItems = restLines
+                        .filter(line => line.trim().startsWith('*'))
+                        .map(line => `<li>${line.trim().substring(1).trim()}</li>`)
+                        .join('');
+                    if (listItems) result += `<ul class="formatted-list">${listItems}</ul>`;
+                } else {
+                    result += `<p>${rest}</p>`;
+                }
+            }
+            return result;
+        }
+
+        // Handle bold text
+        p = p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+        // Handle numbered lists
+        if (p.includes('\n1.') || p.startsWith('1.')) {
+            const lines = p.split('\n');
+            const listItems = [];
+            let regularText = '';
+
+            lines.forEach(line => {
+                line = line.trim();
+                const numberedMatch = line.match(/^(\d+)\.\s+(.+)/);
+                if (numberedMatch) {
+                    if (regularText) {
+                        listItems.push(`<p>${regularText}</p>`);
+                        regularText = '';
+                    }
+                    listItems.push(`<li>${numberedMatch[2]}</li>`);
+                } else if (line) {
+                    regularText += (regularText ? ' ' : '') + line;
+                }
+            });
+
+            if (regularText) listItems.push(`<p>${regularText}</p>`);
+            const listContent = listItems.filter(item => item.startsWith('<li>')).join('');
+            const textContent = listItems.filter(item => item.startsWith('<p>')).join('');
+            if (listContent) return textContent + `<ol class="formatted-list">${listContent}</ol>`;
+            return textContent;
+        }
+
+        // Handle bullet points
+        if (p.includes('\n*') || p.includes('\n-') || p.startsWith('*') || p.startsWith('-')) {
+            const lines = p.split('\n');
+            const listItems = [];
+            let regularText = '';
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('*') || line.startsWith('-')) {
+                    if (regularText) {
+                        listItems.push(`<p>${regularText}</p>`);
+                        regularText = '';
+                    }
+                    let itemText = line.substring(1).trim();
+                    itemText = itemText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                    listItems.push(`<li>${itemText}</li>`);
+                } else if (line) {
+                    regularText += (regularText ? ' ' : '') + line;
+                }
+            });
+
+            if (regularText) listItems.push(`<p>${regularText}</p>`);
+            const listContent = listItems.filter(item => item.startsWith('<li>')).join('');
+            const textContent = listItems.filter(item => item.startsWith('<p>')).join('');
+            if (listContent) return textContent + `<ul class="formatted-list">${listContent}</ul>`;
+            return textContent;
+        }
+
+        // Regular paragraph
+        return `<p>${p}</p>`;
+    });
+
+    return paragraphs.join('');
+}
+
+// Create alert box component
+function createAlertBox(type, content) {
+    const icons = {
+        info: 'ℹ️',
+        warning: '⚠️',
+        success: '✅',
+        error: '❌'
+    };
+
+    const titles = {
+        info: 'Info',
+        warning: 'Warning',
+        success: 'Success',
+        error: 'Error'
+    };
+
+    return `
+        <div class="rich-alert rich-alert-${type}">
+            <div class="alert-icon">${icons[type] || 'ℹ️'}</div>
+            <div class="alert-content">
+                <div class="alert-title">${titles[type] || 'Info'}</div>
+                <div class="alert-message">${content}</div>
+            </div>
+        </div>
+    `;
+}
+
+// Create progress bar component
+function createProgressBar(value, label) {
+    const percentage = Math.min(100, Math.max(0, value));
+    const color = percentage >= 75 ? '#27ae60' : percentage >= 50 ? '#f39c12' : percentage >= 25 ? '#3498db' : '#e74c3c';
+
+    return `
+        <div class="rich-progress">
+            ${label ? `<div class="progress-label">${label}</div>` : ''}
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: ${percentage}%; background: ${color};">
+                    <span class="progress-text">${percentage}%</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create badge component
+function createBadge(text, type) {
+    const badgeClass = `rich-badge rich-badge-${type}`;
+    return `<span class="${badgeClass}">${text}</span>`;
+}
+
+// Create table component
+function createTable(markdown) {
+    const lines = markdown.trim().split('\n');
+    if (lines.length < 2) return markdown;
+
+    const headers = lines[0].split('|').map(h => h.trim()).filter(h => h);
+    const rows = lines.slice(2).map(row =>
+        row.split('|').map(cell => cell.trim()).filter(cell => cell !== '')
+    );
+
+    let tableHTML = '<div class="rich-table-wrapper"><table class="rich-table">';
+
+    // Headers
+    tableHTML += '<thead><tr>';
+    headers.forEach(header => {
+        tableHTML += `<th>${header}</th>`;
+    });
+    tableHTML += '</tr></thead>';
+
+    // Body
+    tableHTML += '<tbody>';
+    rows.forEach(row => {
+        tableHTML += '<tr>';
+        row.forEach(cell => {
+            tableHTML += `<td>${cell}</td>`;
+        });
+        tableHTML += '</tr>';
+    });
+    tableHTML += '</tbody>';
+
+    tableHTML += '</table></div>';
+    return tableHTML;
+}
+
+// Create a code block with syntax highlighting and copy button
+function createCodeBlock(language, code) {
+    const escapedCode = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    const blockId = 'code-' + Math.random().toString(36).substr(2, 9);
+
+    return `
+        <div class="code-block-wrapper">
+            <div class="code-block-header">
+                <span class="code-language">${language}</span>
+                <button class="code-copy-btn" onclick="copyCode('${blockId}')">
+                    <span>Copy code</span>
+                </button>
+            </div>
+            <div class="code-block-content">
+                <pre><code id="${blockId}">${escapedCode}</code></pre>
+            </div>
+        </div>
+    `;
+}
+
+// Copy code to clipboard
+function copyCode(blockId) {
+    const codeElement = document.getElementById(blockId);
+    if (!codeElement) return;
+
+    const code = codeElement.textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        // Find the copy button and update its state
+        const codeBlock = codeElement.closest('.code-block-wrapper');
+        const btn = codeBlock.querySelector('.code-copy-btn');
+        const originalHTML = btn.innerHTML;
+
+        btn.innerHTML = '<span>✓ Copied!</span>';
+        btn.classList.add('copied');
+
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy code:', err);
+    });
+}
+
+// Create a streaming bot message element
+function createStreamingMessage() {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message streaming';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = '<span class="typing-cursor">|</span>';
+
+    messageDiv.appendChild(contentDiv);
+    chatMessages.appendChild(messageDiv);
+    scrollToBottom();
+
+    return { messageDiv, contentDiv };
+}
+
+// Add context-based emojis to response (like ChatGPT)
+function addContextEmojis(text) {
+    // Emoji mappings based on context
+    const emojiPatterns = [
+        // Greetings & Positivity
+        { pattern: /\b(hello|hi|hey|greetings)\b/gi, emoji: '👋', position: 'before' },
+        { pattern: /\b(welcome|glad|happy|great|excellent|perfect|awesome)\b/gi, emoji: '😊', position: 'after' },
+        { pattern: /\b(congratulations|congrats)\b/gi, emoji: '🎉', position: 'after' },
+        { pattern: /\b(thank you|thanks)\b/gi, emoji: '🙏', position: 'after' },
+
+        // Learning & Education
+        { pattern: /\b(learn|study|tutorial|guide|course)\b/gi, emoji: '📚', position: 'after' },
+        { pattern: /\b(tip|tips|trick|tricks|hack|hacks)\b/gi, emoji: '💡', position: 'before' },
+        { pattern: /\b(important|note|remember|key point)\b/gi, emoji: '⚠️', position: 'before' },
+        { pattern: /\b(example|examples|instance)\b/gi, emoji: '📝', position: 'before' },
+
+        // Technology & Code
+        { pattern: /\b(code|coding|programming|development)\b/gi, emoji: '💻', position: 'after' },
+        { pattern: /\b(bug|error|issue|problem)\b/gi, emoji: '🐛', position: 'after' },
+        { pattern: /\b(fix|fixed|solution|resolve)\b/gi, emoji: '✅', position: 'after' },
+        { pattern: /\b(api|endpoint|server)\b/gi, emoji: '⚙️', position: 'after' },
+        { pattern: /\b(database|data|storage)\b/gi, emoji: '💾', position: 'after' },
+
+        // Success & Achievement
+        { pattern: /\b(success|successful|achieved|completed)\b/gi, emoji: '✨', position: 'after' },
+        { pattern: /\b(done|finished|ready)\b/gi, emoji: '✔️', position: 'after' },
+        { pattern: /\b(winner|win|victory)\b/gi, emoji: '🏆', position: 'after' },
+
+        // Security & Safety
+        { pattern: /\b(security|secure|safe|protected)\b/gi, emoji: '🔒', position: 'after' },
+        { pattern: /\b(warning|danger|caution|careful)\b/gi, emoji: '⚠️', position: 'before' },
+
+        // Time & Speed
+        { pattern: /\b(fast|quick|speed|rapid)\b/gi, emoji: '⚡', position: 'after' },
+        { pattern: /\b(slow|wait|patience)\b/gi, emoji: '⏱️', position: 'after' },
+        { pattern: /\b(new|latest|modern|recent)\b/gi, emoji: '🆕', position: 'after' },
+
+        // Communication
+        { pattern: /\b(message|chat|communication|talk)\b/gi, emoji: '💬', position: 'after' },
+        { pattern: /\b(email|mail)\b/gi, emoji: '📧', position: 'after' },
+        { pattern: /\b(phone|call|mobile)\b/gi, emoji: '📱', position: 'after' },
+
+        // Money & Business
+        { pattern: /\b(money|price|cost|payment)\b/gi, emoji: '💰', position: 'after' },
+        { pattern: /\b(business|company|enterprise)\b/gi, emoji: '💼', position: 'after' },
+        { pattern: /\b(growth|increase|profit)\b/gi, emoji: '📈', position: 'after' },
+
+        // Location & Travel
+        { pattern: /\b(home|house)\b/gi, emoji: '🏠', position: 'after' },
+        { pattern: /\b(travel|trip|journey)\b/gi, emoji: '✈️', position: 'after' },
+        { pattern: /\b(location|place|address)\b/gi, emoji: '📍', position: 'after' },
+
+        // Weather & Nature
+        { pattern: /\b(sun|sunny|sunshine)\b/gi, emoji: '☀️', position: 'after' },
+        { pattern: /\b(rain|rainy)\b/gi, emoji: '🌧️', position: 'after' },
+        { pattern: /\b(tree|forest|nature)\b/gi, emoji: '🌳', position: 'after' },
+        { pattern: /\b(flower|plant)\b/gi, emoji: '🌸', position: 'after' },
+
+        // Food & Drink
+        { pattern: /\b(food|eat|meal)\b/gi, emoji: '🍽️', position: 'after' },
+        { pattern: /\b(coffee|cafe)\b/gi, emoji: '☕', position: 'after' },
+        { pattern: /\b(pizza)\b/gi, emoji: '🍕', position: 'after' },
+
+        // Entertainment
+        { pattern: /\b(music|song|audio)\b/gi, emoji: '🎵', position: 'after' },
+        { pattern: /\b(video|film|movie)\b/gi, emoji: '🎬', position: 'after' },
+        { pattern: /\b(game|gaming|play)\b/gi, emoji: '🎮', position: 'after' },
+        { pattern: /\b(book|read|reading)\b/gi, emoji: '📖', position: 'after' },
+
+        // Emotions & Reactions
+        { pattern: /\b(love|like|favorite)\b/gi, emoji: '❤️', position: 'after' },
+        { pattern: /\b(sad|sorry|unfortunately)\b/gi, emoji: '😔', position: 'after' },
+        { pattern: /\b(laugh|funny|joke)\b/gi, emoji: '😄', position: 'after' },
+        { pattern: /\b(think|thought|idea)\b/gi, emoji: '💭', position: 'after' },
+
+        // Questions & Help
+        { pattern: /\b(question|ask|wondering)\b/gi, emoji: '❓', position: 'after' },
+        { pattern: /\b(help|assist|support)\b/gi, emoji: '🤝', position: 'after' },
+        { pattern: /\b(search|find|look)\b/gi, emoji: '🔍', position: 'after' },
+    ];
+
+    // Track processed words by their position to prevent duplicates
+    const processedWords = new Map(); // word -> count of times we've added emoji
+    let result = text;
+
+    // Collect all potential emoji insertions with their positions
+    const insertions = [];
+
+    emojiPatterns.forEach(({ pattern, emoji, position }) => {
+        let match;
+        const regex = new RegExp(pattern.source, pattern.flags);
+
+        while ((match = regex.exec(text)) !== null) {
+            const word = match[0].toLowerCase();
+            const index = match.index;
+
+            // Track how many times this word appears and limit emoji to first 1-2 occurrences
+            const wordKey = `${word}-${emoji}`;
+            const count = processedWords.get(wordKey) || 0;
+
+            // Only add emoji to first occurrence of each word in entire text
+            if (count === 0) {
+                insertions.push({
+                    index: index,
+                    word: match[0],
+                    emoji: emoji,
+                    position: position,
+                    wordKey: wordKey
+                });
+                processedWords.set(wordKey, count + 1);
+            }
+        }
+    });
+
+    // Sort insertions by index (reverse order for correct string manipulation)
+    insertions.sort((a, b) => b.index - a.index);
+
+    // Apply insertions from end to beginning (to preserve indices)
+    insertions.forEach(insertion => {
+        const beforeText = result.substring(0, insertion.index);
+        const matchedWord = result.substring(insertion.index, insertion.index + insertion.word.length);
+        const afterText = result.substring(insertion.index + insertion.word.length);
+
+        if (insertion.position === 'before') {
+            result = beforeText + insertion.emoji + ' ' + matchedWord + afterText;
+        } else {
+            result = beforeText + matchedWord + ' ' + insertion.emoji + afterText;
+        }
+    });
+
+    return result;
+}
+
+// Stream text with typing effect (word by word - smoother, less flickering)
+async function streamText(contentDiv, text, speed = 50) {
+    // Create a plain text container for streaming
+    const streamingSpan = document.createElement('span');
+    streamingSpan.style.whiteSpace = 'pre-wrap';
+    contentDiv.innerHTML = '';
+    contentDiv.appendChild(streamingSpan);
+
+    const cursorSpan = document.createElement('span');
+    cursorSpan.className = 'typing-cursor';
+    cursorSpan.textContent = '|';
+    contentDiv.appendChild(cursorSpan);
+
+    // Split text into words and whitespace
+    const parts = text.match(/\S+|\s+/g) || [];
+    let currentText = '';
+
+    // Type word by word for smoother effect
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        currentText += part;
+
+        // Update display with plain text
+        streamingSpan.textContent = currentText;
+        scrollToBottom();
+
+        // Variable speed based on content
+        let delay = speed;
+
+        // Pause after punctuation
+        if (part.match(/[.!?]$/)) {
+            delay = speed * 8; // Longer pause after sentences
+        } else if (part.match(/[,;:]$/)) {
+            delay = speed * 4; // Medium pause after commas
+        } else if (part === '\n' || part.includes('\n')) {
+            delay = speed * 6; // Pause at line breaks
+        } else if (part.trim() === '') {
+            delay = speed * 0.3; // Very short for spaces
+        } else {
+            // Add slight randomness for natural feel
+            delay = speed + (Math.random() * 20 - 10);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    // Remove cursor and format the complete text
+    cursorSpan.remove();
+    contentDiv.innerHTML = formatMessage(text);
+}
+
+// Submit feedback
+async function submitFeedback(messageId, feedback, messageData) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/feedback`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message_id: messageId,
+                session_id: messageData.session_id,
+                user_query: messageData.user_query,
+                bot_response: messageData.response,
+                feedback: feedback,
+                sources: messageData.sources,
+                context_used: messageData.context_used
+            })
+        });
+
+        if (response.ok) {
+            console.log('Feedback submitted successfully');
+        } else {
+            console.error('Failed to submit feedback');
+        }
+    } catch (error) {
+        console.error('Error submitting feedback:', error);
+    }
+}
+
+// Send message to API with streaming typing effect
+async function sendMessage() {
+    console.log('🚀 sendMessage() function called');
+    console.log('messageInput element:', messageInput);
+    console.log('messageInput value:', messageInput ? messageInput.value : 'NULL');
+
+    const message = messageInput.value.trim();
+    console.log('Message to send:', message);
+
+    if (!message) {
+        console.log('⚠ Empty message, aborting send');
+        return;
+    }
+
+    // Disable input
+    messageInput.disabled = true;
+    sendButton.disabled = true;
+
+    // Add user message to chat
+    addUserMessage(message);
+    messageInput.value = '';
+
+    // Show loading
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                session_id: sessionId,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Remove loading
+        removeLoading();
+
+        // Create streaming message element
+        const { messageDiv, contentDiv } = createStreamingMessage();
+
+        // Add reformulation notice if present
+        if (data.reformulated_query) {
+            const reformulationDiv = document.createElement('div');
+            reformulationDiv.className = 'reformulation-notice';
+            reformulationDiv.innerHTML = `
+                🔄 <small>Interpreted as: "${data.reformulated_query}"</small>
+            `;
+            messageDiv.insertBefore(reformulationDiv, contentDiv);
+        }
+
+        // Add context-based emojis to response
+        const enhancedResponse = addContextEmojis(data.response);
+
+        // Stream the response with typing effect (word by word)
+        await streamText(contentDiv, enhancedResponse, 50);
+
+        // Speak the response if voice mode is enabled (use original text without emojis for speech)
+        speakText(data.response);
+
+        // Add sources after streaming completes
+        if (data.sources && data.sources.length > 0) {
+            const sourcesDiv = document.createElement('div');
+            sourcesDiv.className = 'message-sources';
+            sourcesDiv.innerHTML = '<div class="sources-header">📚 <strong>Sources:</strong></div>';
+
+            const sourcesListDiv = document.createElement('div');
+            sourcesListDiv.className = 'sources-list';
+
+            // Group sources and remove duplicates
+            const uniqueSources = [];
+            const seenSources = new Set();
+
+            data.sources.forEach(source => {
+                const key = `${source.source}-${source.category || ''}`;
+                if (!seenSources.has(key)) {
+                    seenSources.add(key);
+                    uniqueSources.push(source);
+                }
+            });
+
+            uniqueSources.slice(0, 5).forEach((source, index) => {
+                const sourceItem = document.createElement('div');
+                sourceItem.className = 'source-item';
+
+                const emoji = getSourceEmoji(source.source, source.category);
+                const relevance = Math.round(source.relevance_score * 100);
+
+                // Show actual file path/name or category
+                let displayName = '';
+                let fullPath = '';
+
+                if (source.source.includes('\\') || source.source.includes('/')) {
+                    // It's a file path - show full path and extracted name
+                    fullPath = source.source;
+                    displayName = extractFilename(source.source);
+                } else if (source.category) {
+                    // It's a category from FAQ
+                    displayName = source.category;
+                    fullPath = `FAQ - ${source.category}`;
+                } else {
+                    displayName = source.source;
+                    fullPath = source.source;
+                }
+
+                sourceItem.innerHTML = `
+                    <span class="source-emoji">${emoji}</span>
+                    <div class="source-details">
+                        <div class="source-name">${displayName}</div>
+                        <div class="source-path" title="${fullPath}">${fullPath}</div>
+                    </div>
+                    <span class="source-relevance" title="Relevance score">${relevance}%</span>
+                `;
+
+                sourcesListDiv.appendChild(sourceItem);
+            });
+
+            sourcesDiv.appendChild(sourcesListDiv);
+            messageDiv.appendChild(sourcesDiv);
+        }
+
+        // Add feedback buttons
+        if (data.message_id) {
+            const messageData = {
+                user_query: message,
+                response: data.response,
+                session_id: data.session_id,
+                sources: data.sources,
+                context_used: data.context_used
+            };
+
+            const feedbackDiv = document.createElement('div');
+            feedbackDiv.className = 'feedback-buttons';
+            feedbackDiv.innerHTML = `
+                <button class="feedback-btn thumbs-up" data-message-id="${data.message_id}" data-feedback="positive" title="Helpful response">
+                    👍
+                </button>
+                <button class="feedback-btn thumbs-down" data-message-id="${data.message_id}" data-feedback="negative" title="Not helpful">
+                    👎
+                </button>
+            `;
+
+            // Add click handlers
+            feedbackDiv.querySelectorAll('.feedback-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const feedback = e.target.dataset.feedback;
+                    const msgId = e.target.dataset.messageId;
+                    await submitFeedback(msgId, feedback, messageData);
+
+                    // Visual feedback
+                    feedbackDiv.querySelectorAll('.feedback-btn').forEach(b => b.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                    e.target.disabled = true;
+                });
+            });
+
+            messageDiv.appendChild(feedbackDiv);
+        }
+
+        // Hide suggested questions after first message
+        if (typeof hideSuggestedQuestions !== 'undefined') {
+            hideSuggestedQuestions();
+        }
+
+        // Show "People Also Asked" or follow-up suggestions
+        if (typeof showPeopleAlsoAsked !== 'undefined') {
+            await showPeopleAlsoAsked(message, data.response, data.sources);
+        }
+
+    } catch (error) {
+        console.error('Error sending message:', error);
+        removeLoading();
+
+        // Show more detailed error message
+        let errorMessage = '❌ Sorry, I encountered an error. Please try again.';
+        if (error.message) {
+            errorMessage += ` (${error.message})`;
+            console.error('Error details:', error);
+        }
+
+        addBotMessage(errorMessage);
+    } finally {
+        // Re-enable input
+        messageInput.disabled = false;
+        sendButton.disabled = false;
+        messageInput.focus();
+    }
+}
+
+// ===== SIDEBAR FUNCTIONALITY =====
+
+// Sidebar state
+let sidebarOpen = false;
+let currentSessionId = null;
+let sessions = [];
+
+// Initialize sidebar
+function initializeSidebar() {
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const sidebar = document.getElementById('chatSidebar');
+
+    // Toggle button click
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => toggleSidebar());
+    }
+
+    // Close button click
+    if (sidebarClose) {
+        sidebarClose.addEventListener('click', () => closeSidebar());
+    }
+
+    // Overlay click (mobile)
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', () => closeSidebar());
+    }
+
+    // New chat button
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', () => createNewChat());
+    }
+
+    // Load sessions from API
+    loadSessions();
+
+    console.log('✅ Sidebar initialized');
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+    const sidebar = document.getElementById('chatSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (sidebarOpen) {
+        closeSidebar();
+    } else {
+        sidebar.classList.add('open');
+        overlay.classList.add('active');
+        document.body.classList.add('sidebar-open');
+        sidebarOpen = true;
+
+        // Reload sessions when opening
+        loadSessions();
+    }
+}
+
+// Close sidebar
+function closeSidebar() {
+    const sidebar = document.getElementById('chatSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+    sidebarOpen = false;
+}
+
+// Load sessions from API
+async function loadSessions() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/sessions/list`);
+        if (!response.ok) {
+            throw new Error('Failed to load sessions');
+        }
+
+        const data = await response.json();
+        sessions = data.sessions || [];
+
+        renderSessions();
+    } catch (error) {
+        console.error('Error loading sessions:', error);
+        renderEmptyState();
+    }
+}
+
+// Render sessions list
+function renderSessions() {
+    const sessionsList = document.getElementById('sessionsList');
+
+    if (!sessionsList) return;
+
+    if (sessions.length === 0) {
+        renderEmptyState();
+        return;
+    }
+
+    sessionsList.innerHTML = '';
+
+    sessions.forEach(session => {
+        const sessionItem = createSessionItem(session);
+        sessionsList.appendChild(sessionItem);
+    });
+}
+
+// Create session item element
+function createSessionItem(session) {
+    const item = document.createElement('div');
+    item.className = 'session-item';
+    item.dataset.sessionId = session.session_id;
+
+    // Mark active session
+    if (session.session_id === sessionId) {
+        item.classList.add('active');
+    }
+
+    const timeAgo = formatTimeAgo(session.last_active);
+    const isPinned = session.pinned || false;
+
+    item.innerHTML = `
+        <div class="session-title">${session.title}${isPinned ? ' <i class="fas fa-thumbtack pin-icon"></i>' : ''}</div>
+        <div class="session-metadata">
+            <span class="session-time"><i class="far fa-clock"></i> ${timeAgo}</span>
+            <span class="session-message-count"><i class="far fa-comments"></i> ${session.message_count}</span>
+        </div>
+        <div class="session-actions">
+            <button class="session-pin" title="${isPinned ? 'Unpin conversation' : 'Pin conversation'}">
+                <i class="fas ${isPinned ? 'fa-thumbtack' : 'fa-thumbtack'}"></i>
+            </button>
+            <button class="session-delete" title="Delete conversation">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+    `;
+
+    // Add pinned class if session is pinned
+    if (isPinned) {
+        item.classList.add('pinned');
+    }
+
+    // Click to switch session
+    item.addEventListener('click', (e) => {
+        // Check if click was on action buttons or their icons
+        if (!e.target.closest('.session-pin') && !e.target.closest('.session-delete')) {
+            switchToSession(session.session_id);
+        }
+    });
+
+    // Pin button
+    const pinBtn = item.querySelector('.session-pin');
+    pinBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await togglePinSession(session.session_id);
+    });
+
+    // Delete button
+    const deleteBtn = item.querySelector('.session-delete');
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSession(session.session_id);
+    });
+
+    return item;
+}
+
+// Render empty state
+function renderEmptyState() {
+    const sessionsList = document.getElementById('sessionsList');
+
+    if (!sessionsList) return;
+
+    sessionsList.innerHTML = `
+        <div class="sessions-empty">
+            <div class="sessions-empty-icon">
+                <i class="far fa-comments"></i>
+            </div>
+            <div class="sessions-empty-text">No conversations yet.<br>Start a new chat!</div>
+        </div>
+    `;
+}
+
+// Format time ago
+function formatTimeAgo(timestamp) {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffMs = now - time;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return time.toLocaleDateString();
+}
+
+// Create new chat
+async function createNewChat() {
+    try {
+        // Clear current chat
+        chatMessages.innerHTML = '';
+        sessionId = null;
+
+        // Remove saved session from localStorage
+        localStorage.removeItem('currentSessionId');
+
+        // Create new session
+        await initializeSession();
+
+        // Reload sessions list
+        await loadSessions();
+
+        // Close sidebar
+        closeSidebar();
+
+        console.log('✅ New chat created');
+    } catch (error) {
+        console.error('Error creating new chat:', error);
+        addBotMessage('Sorry, I couldn\'t create a new chat. Please try again.');
+    }
+}
+
+// Switch to existing session
+async function switchToSession(newSessionId) {
+    try {
+        // Don't switch if already active
+        if (newSessionId === sessionId) {
+            closeSidebar();
+            return;
+        }
+
+        // Clear current chat
+        chatMessages.innerHTML = '';
+
+        // Load session history
+        const response = await fetch(`${API_BASE_URL}/session/${newSessionId}/history`);
+
+        if (!response.ok) {
+            throw new Error('Failed to load session history');
+        }
+
+        const data = await response.json();
+        sessionId = newSessionId;
+
+        // Save to localStorage
+        localStorage.setItem('currentSessionId', sessionId);
+
+        // Render chat history
+        if (data.history && data.history.length > 0) {
+            data.history.forEach(msg => {
+                if (msg.role === 'user') {
+                    addUserMessage(msg.content);
+                } else if (msg.role === 'assistant') {
+                    addBotMessage(msg.content);
+                }
+            });
+        } else {
+            addBotMessage('Hello! I\'m your AI assistant. How can I help you today?');
+        }
+
+        // Update sidebar active state
+        document.querySelectorAll('.session-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.sessionId === newSessionId) {
+                item.classList.add('active');
+            }
+        });
+
+        // Close sidebar
+        closeSidebar();
+
+        console.log('✅ Switched to session:', newSessionId);
+    } catch (error) {
+        console.error('Error switching session:', error);
+        addBotMessage('Sorry, I couldn\'t load that conversation. Please try again.');
+    }
+}
+
+// Toggle pin status of a session
+async function togglePinSession(sessionIdToPin) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/session/${sessionIdToPin}/pin`, {
+            method: 'PUT'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to toggle pin');
+        }
+
+        const data = await response.json();
+
+        // Reload sessions list to reflect new order
+        await loadSessions();
+
+        console.log(`✅ Session ${data.pinned ? 'pinned' : 'unpinned'}:`, sessionIdToPin);
+    } catch (error) {
+        console.error('Error toggling pin:', error);
+        alert('Sorry, I couldn\'t pin/unpin that conversation. Please try again.');
+    }
+}
+
+// Delete session
+async function deleteSession(sessionIdToDelete) {
+    // Confirm deletion
+    if (!confirm('Delete this conversation? This cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/session/${sessionIdToDelete}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete session');
+        }
+
+        // If deleting current session, create new one
+        if (sessionIdToDelete === sessionId) {
+            await createNewChat();
+        } else {
+            // Just reload sessions list
+            await loadSessions();
+        }
+
+        console.log('✅ Session deleted:', sessionIdToDelete);
+    } catch (error) {
+        console.error('Error deleting session:', error);
+        alert('Sorry, I couldn\'t delete that conversation. Please try again.');
+    }
+}
+
+// ===== VOICE CHAT FUNCTIONALITY =====
+
+// Voice state
+let voiceModeEnabled = false;
+let isListening = false;
+let recognition = null;
+let synthesis = window.speechSynthesis;
+
+// Initialize speech recognition
+function initializeVoiceRecognition() {
+    // Check if browser supports speech recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        console.warn('⚠️ Speech recognition not supported in this browser');
+        return false;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+        console.log('🎤 Voice recognition started');
+        isListening = true;
+        updateVoiceUI(true);
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('📝 Transcript:', transcript);
+
+        // Fill input with transcript
+        messageInput.value = transcript;
+
+        // Auto-send if voice mode is enabled
+        if (voiceModeEnabled) {
+            setTimeout(() => sendMessage(), 500);
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.error('❌ Speech recognition error:', event.error);
+        isListening = false;
+        updateVoiceUI(false);
+
+        if (event.error === 'not-allowed') {
+            alert('Microphone access denied. Please enable microphone permissions in your browser settings.');
+        }
+    };
+
+    recognition.onend = () => {
+        console.log('🎤 Voice recognition ended');
+        isListening = false;
+        updateVoiceUI(false);
+    };
+
+    return true;
+}
+
+// Start voice recognition
+function startVoiceRecognition() {
+    if (!recognition) {
+        const initialized = initializeVoiceRecognition();
+        if (!initialized) {
+            alert('Voice recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
+            return;
+        }
+    }
+
+    if (isListening) {
+        recognition.stop();
+        return;
+    }
+
+    try {
+        recognition.start();
+    } catch (error) {
+        console.error('Error starting recognition:', error);
+        if (error.name === 'InvalidStateError') {
+            // Recognition is already running, stop it first
+            recognition.stop();
+            setTimeout(() => recognition.start(), 100);
+        }
+    }
+}
+
+// Update voice UI
+function updateVoiceUI(listening) {
+    const voiceInputBtn = document.getElementById('voiceInputBtn');
+    const voiceStatus = document.getElementById('voiceStatus');
+
+    if (listening) {
+        voiceInputBtn.classList.add('listening');
+        voiceStatus.style.display = 'block';
+    } else {
+        voiceInputBtn.classList.remove('listening');
+        voiceStatus.style.display = 'none';
+    }
+}
+
+// Toggle voice mode (auto text-to-speech)
+function toggleVoiceMode() {
+    voiceModeEnabled = !voiceModeEnabled;
+
+    const voiceToggle = document.getElementById('voiceToggle');
+    const voiceIcon = voiceToggle.querySelector('.voice-icon');
+
+    if (voiceModeEnabled) {
+        voiceToggle.classList.add('active');
+        voiceIcon.className = 'fas fa-volume-up voice-icon';
+        document.body.classList.add('voice-mode-active');
+        console.log('🔊 Voice mode enabled');
+    } else {
+        voiceToggle.classList.remove('active');
+        voiceIcon.className = 'fas fa-volume-mute voice-icon';
+        document.body.classList.remove('voice-mode-active');
+
+        // Stop any ongoing speech
+        if (synthesis.speaking) {
+            synthesis.cancel();
+        }
+        console.log('🔇 Voice mode disabled');
+    }
+}
+
+// Text-to-speech function
+function speakText(text) {
+    if (!voiceModeEnabled) return;
+
+    // Cancel any ongoing speech
+    if (synthesis.speaking) {
+        synthesis.cancel();
+    }
+
+    // Clean text for speech (remove markdown, code blocks, etc.)
+    let cleanText = text
+        .replace(/```[\s\S]*?```/g, ' code block ') // Replace code blocks
+        .replace(/`[^`]+`/g, ' code ') // Replace inline code
+        .replace(/\*\*(.+?)\*\*/g, '$1') // Remove bold
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Convert links
+        .replace(/#+\s+/g, '') // Remove heading markers
+        .replace(/[*_~]/g, '') // Remove other markdown
+        .trim();
+
+    // Split into sentences for better pacing
+    const sentences = cleanText.match(/[^.!?]+[.!?]+/g) || [cleanText];
+
+    sentences.forEach((sentence, index) => {
+        const utterance = new SpeechSynthesisUtterance(sentence.trim());
+        utterance.rate = 1.1; // Slightly faster
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        // Select a good voice (prefer female voice for consistency)
+        const voices = synthesis.getVoices();
+        const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Microsoft Zira'));
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+
+        if (index === sentences.length - 1) {
+            utterance.onend = () => {
+                console.log('✅ Speech completed');
+            };
+        }
+
+        synthesis.speak(utterance);
+    });
+}
+
+// Initialize voice controls
+function initializeVoiceControls() {
+    const voiceInputBtn = document.getElementById('voiceInputBtn');
+    const voiceToggle = document.getElementById('voiceToggle');
+
+    // Voice input button click
+    if (voiceInputBtn) {
+        voiceInputBtn.addEventListener('click', () => {
+            startVoiceRecognition();
+        });
+    }
+
+    // Voice mode toggle click
+    if (voiceToggle) {
+        voiceToggle.addEventListener('click', () => {
+            toggleVoiceMode();
+        });
+    }
+
+    // Load voices (required for some browsers)
+    if (synthesis.onvoiceschanged !== undefined) {
+        synthesis.onvoiceschanged = () => {
+            synthesis.getVoices();
+        };
+    }
+
+    console.log('✅ Voice controls initialized');
+}
+
+// ===== EXPORT CHAT FUNCTIONALITY =====
+
+// Initialize export controls
+function initializeExportControls() {
+    const exportBtn = document.getElementById('exportBtn');
+    const exportModal = document.getElementById('exportModal');
+    const exportModalOverlay = document.getElementById('exportModalOverlay');
+    const exportModalClose = document.getElementById('exportModalClose');
+    const exportOptionBtns = document.querySelectorAll('.export-option-btn');
+
+    // Open export modal
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            openExportModal();
+        });
+    }
+
+    // Close modal
+    if (exportModalClose) {
+        exportModalClose.addEventListener('click', () => {
+            closeExportModal();
+        });
+    }
+
+    if (exportModalOverlay) {
+        exportModalOverlay.addEventListener('click', () => {
+            closeExportModal();
+        });
+    }
+
+    // Export format buttons
+    exportOptionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const format = btn.dataset.format;
+            exportChat(format);
+            closeExportModal();
+        });
+    });
+
+    console.log('✅ Export controls initialized');
+}
+
+// Open export modal
+function openExportModal() {
+    const exportModal = document.getElementById('exportModal');
+    const exportModalOverlay = document.getElementById('exportModalOverlay');
+
+    exportModal.style.display = 'block';
+    exportModalOverlay.style.display = 'block';
+}
+
+// Close export modal
+function closeExportModal() {
+    const exportModal = document.getElementById('exportModal');
+    const exportModalOverlay = document.getElementById('exportModalOverlay');
+
+    exportModal.style.display = 'none';
+    exportModalOverlay.style.display = 'none';
+}
+
+// Get current conversation messages
+function getConversationMessages() {
+    const messages = [];
+    const messageElements = document.querySelectorAll('.chat-messages .message');
+
+    messageElements.forEach(msgEl => {
+        if (msgEl.classList.contains('loading')) return;
+
+        const isUser = msgEl.classList.contains('user-message');
+        const role = isUser ? 'user' : 'assistant';
+        const content = msgEl.textContent.trim();
+
+        messages.push({ role, content });
+    });
+
+    return messages;
+}
+
+// Export chat in different formats
+async function exportChat(format) {
+    const messages = getConversationMessages();
+
+    if (messages.length === 0) {
+        alert('No messages to export. Start a conversation first!');
+        return;
+    }
+
+    let exportContent = '';
+    let filename = '';
+    let mimeType = '';
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+
+    switch (format) {
+        case 'json':
+            exportContent = JSON.stringify({
+                session_id: sessionId,
+                exported_at: new Date().toISOString(),
+                messages: messages
+            }, null, 2);
+            filename = `chat-export-${timestamp}.json`;
+            mimeType = 'application/json';
+            break;
+
+        case 'txt':
+            exportContent = messages.map(msg => {
+                const label = msg.role === 'user' ? 'You' : 'AI Assistant';
+                return `${label}:\n${msg.content}\n`;
+            }).join('\n---\n\n');
+            filename = `chat-export-${timestamp}.txt`;
+            mimeType = 'text/plain';
+            break;
+
+        case 'md':
+            exportContent = `# Chat Conversation Export\n\n`;
+            exportContent += `**Exported:** ${new Date().toLocaleString()}\n\n`;
+            exportContent += `---\n\n`;
+            exportContent += messages.map(msg => {
+                const label = msg.role === 'user' ? '**You**' : '**AI Assistant**';
+                return `### ${label}\n\n${msg.content}\n`;
+            }).join('\n---\n\n');
+            filename = `chat-export-${timestamp}.md`;
+            mimeType = 'text/markdown';
+            break;
+
+        case 'html':
+            exportContent = generateHTMLExport(messages, timestamp);
+            filename = `chat-export-${timestamp}.html`;
+            mimeType = 'text/html';
+            break;
+
+        default:
+            console.error('Unknown export format:', format);
+            return;
+    }
+
+    // Download the file
+    downloadFile(exportContent, filename, mimeType);
+    console.log(`✅ Exported chat as ${format.toUpperCase()}`);
+}
+
+// Generate HTML export
+function generateHTMLExport(messages, timestamp) {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Export - ${new Date().toLocaleDateString()}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e5e5e5;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        .export-info {
+            color: #808080;
+            font-size: 14px;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .message {
+            margin-bottom: 24px;
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid #2a2a2a;
+        }
+        .message.user {
+            background: #2a2a2a;
+            margin-left: 60px;
+        }
+        .message.assistant {
+            background: #252525;
+            margin-right: 60px;
+        }
+        .message-role {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .message.user .message-role {
+            color: #3498db;
+        }
+        .message.assistant .message-role {
+            color: #27ae60;
+        }
+        .message-content {
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        .footer {
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #2a2a2a;
+            text-align: center;
+            color: #606060;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chat Conversation Export</h1>
+        <div class="export-info">
+            Exported: ${new Date().toLocaleString()}<br>
+            Session ID: ${sessionId || 'N/A'}<br>
+            Total Messages: ${messages.length}
+        </div>
+        ${messages.map(msg => `
+            <div class="message ${msg.role}">
+                <div class="message-role">${msg.role === 'user' ? 'You' : 'AI Assistant'}</div>
+                <div class="message-content">${escapeHtml(msg.content)}</div>
+            </div>
+        `).join('')}
+        <div class="footer">
+            Generated by AI Chatbot • Powered by Groq API
+        </div>
+    </div>
+</body>
+</html>`;
+    return html;
+}
+
+// Escape HTML entities
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Download file
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Initialize on page load
+window.addEventListener('DOMContentLoaded', () => {
+    initialize();
+    initializeSidebar();
+    initializeVoiceControls();
+    initializeExportControls();
+});
