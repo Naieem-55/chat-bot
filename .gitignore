@@ -55,3 +55,4 @@ data/documents/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.env.docker
