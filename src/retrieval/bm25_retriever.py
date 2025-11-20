@@ -2,7 +2,7 @@
 
 from typing import List, Dict, Tuple
 from rank_bm25 import BM25Okapi
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 import logging
 
 logger = logging.getLogger(__name__)

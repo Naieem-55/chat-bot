@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import html2text
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,

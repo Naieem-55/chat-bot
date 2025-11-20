@@ -1,7 +1,7 @@
 """Document retrieval with ranking and filtering."""
 
 from typing import List, Dict, Any, Tuple
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 
 class DocumentRetriever:
