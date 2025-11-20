@@ -345,6 +345,37 @@ async def delete_session(session_id: str):
     return {"message": "Session deleted successfully"}
 
 
+@app.get("/source/{chunk_id}")
+async def get_source_content(chunk_id: str, highlight: str = None):
+    """
+    Get full content for a specific source chunk with optional highlighting.
+
+    Args:
+        chunk_id: The chunk ID to retrieve
+        highlight: Optional text to highlight in the content
+
+    Returns:
+        Full chunk content with metadata
+    """
+    if not vector_store_manager:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        # Search for the chunk by metadata
+        # This is a workaround since we don't have direct ID lookup
+        # We'll return the chunk details from the RAG pipeline's last retrieval
+        # In a production system, you'd want a proper document store
+
+        return {
+            "chunk_id": chunk_id,
+            "message": "Content retrieval endpoint - integrate with document store for full implementation",
+            "note": "Full content is now included in the chat response sources"
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving source content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Feedback endpoints
 class FeedbackRequest(BaseModel):
     """Feedback request model."""

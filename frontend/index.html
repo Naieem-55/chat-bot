@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="voice-chat.css">
+    <link rel="stylesheet" href="citations.css">
 </head>
 <body>
     <!-- Sidebar Toggle Button -->
@@ -310,8 +311,25 @@
         </div>
     </div>
 
+    <!-- Citation Modal -->
+    <div class="citation-modal" id="citationModal" style="display: none;">
+        <div class="citation-modal-content">
+            <div class="citation-modal-header">
+                <h3><i class="fas fa-quote-left"></i> Source Citation</h3>
+                <button class="citation-modal-close" id="citationModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="citation-modal-body" id="citationModalBody">
+                <!-- Content will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+    <div class="citation-modal-overlay" id="citationModalOverlay" style="display: none;"></div>
+
     <!-- Temporarily disabled to test freeze issue -->
     <!-- <script src="suggestions.js?v=1.1"></script> -->
+    <script src="citations.js"></script>
     <script src="chat.js?v=3.4"></script>
     <script src="voice-chat.js"></script>
 </body>

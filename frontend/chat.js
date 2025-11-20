@@ -202,18 +202,10 @@ function addBotMessage(message, sources = null, messageId = null, messageData = 
         });
 
         uniqueSources.slice(0, 5).forEach((source, index) => {
-            const sourceItem = document.createElement('div');
-            sourceItem.className = 'source-item';
-
-            const emoji = getSourceEmoji(source.source, source.category);
-            const relevance = Math.round(source.relevance_score * 100);
-            const sourceName = source.category || extractFilename(source.source);
-
-            sourceItem.innerHTML = `
-                <span class="source-emoji">${emoji}</span>
-                <span class="source-name">${sourceName}</span>
-                <span class="source-relevance" title="Relevance score">${relevance}%</span>
-            `;
+            // Use the enhanced source item from citations.js
+            const sourceItem = typeof createEnhancedSourceItem === 'function'
+                ? createEnhancedSourceItem(source, index)
+                : createFallbackSourceItem(source);
 
             sourcesListDiv.appendChild(sourceItem);
         });
@@ -306,6 +298,24 @@ function getSourceEmoji(source, category) {
     if (source.includes('mediaconvert')) return '🎬';
 
     return '📌';
+}
+
+// Fallback source item if citations.js not loaded
+function createFallbackSourceItem(source) {
+    const sourceItem = document.createElement('div');
+    sourceItem.className = 'source-item';
+
+    const emoji = getSourceEmoji(source.source, source.category);
+    const relevance = Math.round(source.relevance_score * 100);
+    const sourceName = source.category || extractFilename(source.source);
+
+    sourceItem.innerHTML = `
+        <span class="source-emoji">${emoji}</span>
+        <span class="source-name">${sourceName}</span>
+        <span class="source-relevance" title="Relevance score">${relevance}%</span>
+    `;
+
+    return sourceItem;
 }
 
 // Extract filename from path or URL

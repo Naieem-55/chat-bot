@@ -131,15 +131,32 @@ class DocumentRetriever:
             results: List of (Document, score) tuples
 
         Returns:
-            List of metadata dictionaries
+            List of metadata dictionaries with excerpts
         """
         metadata_list = []
         for doc, score in results:
+            # Extract a meaningful excerpt (first 200 chars or up to sentence end)
+            content = doc.page_content
+            excerpt = content[:200]
+
+            # Try to end at a sentence boundary
+            if len(content) > 200:
+                # Look for sentence endings near the 200 char mark
+                for ending in ['. ', '! ', '? ', '\n']:
+                    last_sentence = excerpt.rfind(ending)
+                    if last_sentence > 100:  # Ensure we have substantial content
+                        excerpt = excerpt[:last_sentence + 1]
+                        break
+                excerpt += '...'
+
             metadata = {
                 'source': doc.metadata.get('source', 'Unknown'),
                 'category': doc.metadata.get('category', ''),
                 'relevance_score': round(1 / (1 + score), 3),  # Convert distance to similarity
                 'chunk_id': doc.metadata.get('chunk_id', ''),
+                'excerpt': excerpt,  # Short preview
+                'full_text': content,  # Full chunk content for modal display
+                'doc_id': doc.metadata.get('doc_id', ''),  # Document ID for fetching full doc
             }
             metadata_list.append(metadata)
 
