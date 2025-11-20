@@ -20,8 +20,6 @@ services:
   - type: web
     name: chatbot-frontend
     env: static
-    region: oregon
-    plan: free
     buildCommand: echo "No build needed"
     staticPublishPath: ./frontend
     routes:
