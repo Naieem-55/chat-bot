@@ -1,7 +1,7 @@
 """Vector store manager for handling different vector database types."""
 
 from typing import List, Tuple
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 from .embeddings import EmbeddingGenerator
 from .faiss_store import FAISSVectorStore
 
