@@ -11,8 +11,14 @@ from .session.session_manager import SessionManager
 from .query.query_reformulator import QueryReformulator, HybridRetrieval
 from .memory.memory_manager import MemoryManager
 from .utils.language_detector import detect_and_get_instruction, language_detector
+from .utils.web_search import search_web, web_searcher
 
 logger = logging.getLogger(__name__)
+
+# Minimum relevance threshold - below this, use web search
+# With the formula 1/(1+distance), scores range from ~0.5 (very relevant) to ~0.33 (somewhat irrelevant)
+# Setting threshold to 0.4 means web search triggers when documents are less than 40% relevant
+MIN_RELEVANCE_THRESHOLD = 0.4
 
 
 class RAGPipeline:
@@ -124,9 +130,39 @@ class RAGPipeline:
             # Vector search only
             retrieval_results = self.retriever.retrieve(reformulated_query)
 
-        # Step 4: Format context with memory fusion
+        # Step 3.5: Check relevance and fallback to web search if needed
+        used_web_search = False
+        web_search_results = []
+
+        # Calculate average relevance score
+        if retrieval_results:
+            avg_relevance = sum(1 / (1 + score) for _, score in retrieval_results) / len(retrieval_results)
+        else:
+            avg_relevance = 0
+
+        logger.info(f"Average document relevance: {avg_relevance:.3f} (threshold: {MIN_RELEVANCE_THRESHOLD})")
+
+        # If no results or low relevance, use web search
+        if not retrieval_results or avg_relevance < MIN_RELEVANCE_THRESHOLD:
+            logger.info("Low relevance from documents, falling back to web search...")
+            try:
+                web_context, web_metadata, web_search_results = search_web(query)
+                if web_search_results:
+                    used_web_search = True
+                    logger.info(f"Web search returned {len(web_search_results)} results")
+            except Exception as e:
+                logger.error(f"Web search failed: {e}")
+                web_context = ""
+                web_metadata = []
+
+        # Step 4: Format context (use web search if triggered, otherwise documents)
         memory_used = False  # Initialize first
-        if self.use_long_term_memory and self.memory_manager:
+
+        if used_web_search and web_search_results:
+            # Use web search results as context
+            context = web_searcher.format_results_as_context(web_search_results)
+            logger.info("Using web search results as context")
+        elif self.use_long_term_memory and self.memory_manager:
             try:
                 # Use context fusion to combine retrieved docs with long-term memory
                 context = self.memory_manager.fuse_context(
@@ -179,19 +215,24 @@ class RAGPipeline:
                 self.memory_manager.store_user_fact(session_id, fact, category="conversation")
 
         # Step 10: Prepare response
-        retrieval_metadata = self.retriever.get_retrieval_metadata(retrieval_results)
+        # Use web search metadata if web search was used, otherwise use document metadata
+        if used_web_search and web_search_results:
+            retrieval_metadata = web_searcher.get_search_metadata(web_search_results)
+        else:
+            retrieval_metadata = self.retriever.get_retrieval_metadata(retrieval_results)
 
         response_data = {
             'response': response_text,
             'session_id': session_id,
             'sources': retrieval_metadata,
-            'context_used': len(retrieval_results) > 0,
+            'context_used': len(retrieval_results) > 0 or used_web_search,
             'language': {
                 'code': language_info['code'],
                 'name': language_info['name'],
                 'confidence': language_info['confidence'],
                 'is_rtl': language_info['is_rtl']
-            }
+            },
+            'web_search_used': used_web_search
         }
 
         # Add reformulation info if used

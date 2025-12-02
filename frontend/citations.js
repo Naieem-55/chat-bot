@@ -43,26 +43,44 @@ function createEnhancedSourceItem(source, index) {
 
     const emoji = getSourceEmoji(source.source, source.category);
     const relevance = Math.round(source.relevance_score * 100);
-    const sourceName = source.category || extractFilename(source.source);
+    const isWebSource = source.is_web_result || source.source.startsWith('http');
+    const sourceName = source.title || source.category || extractFilename(source.source);
     const excerpt = source.excerpt || 'No preview available';
 
-    sourceItem.innerHTML = `
-        <div class="source-header">
-            <span class="source-emoji">${emoji}</span>
-            <span class="source-name">${sourceName}</span>
-            <span class="source-relevance" title="Relevance score">${relevance}%</span>
-        </div>
-        <div class="source-excerpt">"${escapeHtml(excerpt)}"</div>
-        <div class="source-view-full">
-            <i class="fas fa-expand-alt"></i>
-            View full context
-        </div>
-    `;
+    if (isWebSource) {
+        // Web source with clickable link
+        sourceItem.innerHTML = `
+            <div class="source-header">
+                <span class="source-emoji">${emoji}</span>
+                <a href="${source.source}" target="_blank" rel="noopener noreferrer" class="source-link" onclick="event.stopPropagation();">
+                    ${sourceName}
+                    <span class="source-link-icon">↗</span>
+                </a>
+                <span class="source-relevance" title="Relevance score">${relevance}%</span>
+            </div>
+            <a href="${source.source}" target="_blank" rel="noopener noreferrer" class="source-url" onclick="event.stopPropagation();">${source.source}</a>
+            ${excerpt !== 'No preview available' ? `<div class="source-excerpt">"${escapeHtml(excerpt)}"</div>` : ''}
+        `;
+    } else {
+        // Local source
+        sourceItem.innerHTML = `
+            <div class="source-header">
+                <span class="source-emoji">${emoji}</span>
+                <span class="source-name">${sourceName}</span>
+                <span class="source-relevance" title="Relevance score">${relevance}%</span>
+            </div>
+            <div class="source-excerpt">"${escapeHtml(excerpt)}"</div>
+            <div class="source-view-full">
+                <i class="fas fa-expand-alt"></i>
+                View full context
+            </div>
+        `;
 
-    // Make the entire item clickable
-    sourceItem.addEventListener('click', () => {
-        showCitationModal(source);
-    });
+        // Make local sources clickable to show modal
+        sourceItem.addEventListener('click', () => {
+            showCitationModal(source);
+        });
+    }
 
     return sourceItem;
 }

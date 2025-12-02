@@ -293,16 +293,17 @@ body {
 .message-sources {
     margin-top: 16px;
     padding-top: 12px;
-    border-top: 1px solid #3a3a3a;
+    border-top: 1px solid rgba(134, 239, 172, 0.3);
 }
 
 .sources-header {
     font-size: 13px;
-    color: #a0a0a0;
+    color: #065f46;
     margin-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 6px;
+    font-weight: 600;
 }
 
 .sources-list {
@@ -315,17 +316,19 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    background: #2a2a2a;
+    background: rgba(255, 255, 255, 0.8);
     padding: 10px 14px;
     border-radius: 8px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid rgba(134, 239, 172, 0.4);
     transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .source-item:hover {
-    background: #303030;
-    border-color: #4a4a4a;
+    background: rgba(240, 253, 244, 0.95);
+    border-color: rgba(16, 185, 129, 0.5);
     transform: translateX(2px);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15);
 }
 
 .source-emoji {
@@ -344,14 +347,14 @@ body {
 }
 
 .source-name {
-    color: #e5e5e5;
+    color: #1f2937;
     font-size: 13px;
     font-weight: 600;
     text-transform: capitalize;
 }
 
 .source-path {
-    color: #808080;
+    color: #6b7280;
     font-size: 10px;
     font-family: 'Courier New', monospace;
     white-space: nowrap;
@@ -361,43 +364,49 @@ body {
 }
 
 .source-relevance {
-    color: #3498db;
+    color: #059669;
     font-size: 11px;
     font-weight: 600;
-    background: rgba(52, 152, 219, 0.1);
+    background: rgba(16, 185, 129, 0.1);
     padding: 2px 8px;
     border-radius: 6px;
-    border: 1px solid rgba(52, 152, 219, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .source-badge {
     display: inline-block;
-    background: #2a2a2a;
-    color: #a0a0a0;
+    background: rgba(255, 255, 255, 0.9);
+    color: #065f46;
     padding: 4px 10px;
     border-radius: 6px;
     margin-right: 6px;
     margin-top: 6px;
     font-weight: 500;
     font-size: 11px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid rgba(134, 239, 172, 0.5);
     cursor: help;
+    transition: all 0.2s;
+}
+
+.source-badge:hover {
+    background: rgba(240, 253, 244, 1);
+    border-color: #10b981;
 }
 
 /* Feedback buttons */
 .feedback-buttons {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid #3a3a3a;
+    border-top: 1px solid rgba(134, 239, 172, 0.3);
     display: flex;
     gap: 8px;
     align-items: center;
 }
 
 .feedback-btn {
-    background: #2a2a2a;
-    border: 1px solid #3a3a3a;
-    color: #a0a0a0;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(134, 239, 172, 0.4);
+    color: #6b7280;
     padding: 8px 14px;
     border-radius: 8px;
     cursor: pointer;
@@ -406,12 +415,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .feedback-btn:hover:not(:disabled) {
-    background: #353535;
-    border-color: #4a4a4a;
+    background: rgba(240, 253, 244, 1);
+    border-color: #10b981;
     transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.15);
 }
 
 .feedback-btn:active:not(:disabled) {
@@ -499,6 +510,46 @@ body {
 .rtl-text .message-content pre {
     direction: ltr;
     text-align: left;
+}
+
+/* Web search indicator */
+.web-search-indicator {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.15) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    padding: 6px 12px;
+    margin-bottom: 10px;
+    display: inline-block;
+}
+
+.web-search-badge {
+    color: #3b82f6;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.web-search-badge::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #3b82f6;
+    border-radius: 50%;
+    animation: webSearchPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes webSearchPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(0.9);
+    }
 }
 
 .chat-input-container {

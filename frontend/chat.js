@@ -366,6 +366,18 @@ function extractFilename(path) {
     return filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 }
 
+// Extract domain name from URL for display
+function extractDomainFromUrl(url) {
+    if (!url) return 'Web Source';
+    try {
+        const urlObj = new URL(url);
+        // Remove www. prefix and return hostname
+        return urlObj.hostname.replace(/^www\./, '');
+    } catch (e) {
+        return 'Web Source';
+    }
+}
+
 // Format message with paragraphs, lists, headings, code blocks
 function formatMessage(text) {
     if (!text) return '';
@@ -987,6 +999,18 @@ async function sendMessage() {
             }
         }
 
+        // Add web search indicator if web search was used
+        if (data.web_search_used) {
+            const webSearchDiv = document.createElement('div');
+            webSearchDiv.className = 'web-search-indicator';
+            webSearchDiv.innerHTML = `
+                <span class="web-search-badge" title="Answer sourced from web search">
+                    🔍 Web Search Result
+                </span>
+            `;
+            messageDiv.insertBefore(webSearchDiv, contentDiv);
+        }
+
         // Add context-based emojis to response
         const enhancedResponse = addContextEmojis(data.response);
 
@@ -1000,7 +1024,10 @@ async function sendMessage() {
         if (data.sources && data.sources.length > 0) {
             const sourcesDiv = document.createElement('div');
             sourcesDiv.className = 'message-sources';
-            sourcesDiv.innerHTML = '<div class="sources-header">📚 <strong>Sources:</strong></div>';
+            const sourcesHeader = data.web_search_used
+                ? '<div class="sources-header">🌐 <strong>Web Sources:</strong></div>'
+                : '<div class="sources-header">📚 <strong>Sources:</strong></div>';
+            sourcesDiv.innerHTML = sourcesHeader;
 
             const sourcesListDiv = document.createElement('div');
             sourcesListDiv.className = 'sources-list';
@@ -1024,11 +1051,18 @@ async function sendMessage() {
                 const emoji = getSourceEmoji(source.source, source.category);
                 const relevance = Math.round(source.relevance_score * 100);
 
+                // Check if it's a web source (URL)
+                const isWebSource = source.is_web_result || source.source.startsWith('http');
+
                 // Show actual file path/name or category
                 let displayName = '';
                 let fullPath = '';
 
-                if (source.source.includes('\\') || source.source.includes('/')) {
+                if (isWebSource) {
+                    // It's a web URL - use title if available
+                    displayName = source.title || extractDomainFromUrl(source.source);
+                    fullPath = source.source;
+                } else if (source.source.includes('\\') || source.source.includes('/')) {
                     // It's a file path - show full path and extracted name
                     fullPath = source.source;
                     displayName = extractFilename(source.source);
@@ -1041,14 +1075,30 @@ async function sendMessage() {
                     fullPath = source.source;
                 }
 
-                sourceItem.innerHTML = `
-                    <span class="source-emoji">${emoji}</span>
-                    <div class="source-details">
-                        <div class="source-name">${displayName}</div>
-                        <div class="source-path" title="${fullPath}">${fullPath}</div>
-                    </div>
-                    <span class="source-relevance" title="Relevance score">${relevance}%</span>
-                `;
+                if (isWebSource) {
+                    // Web source - make it a clickable link
+                    sourceItem.innerHTML = `
+                        <span class="source-emoji">${emoji}</span>
+                        <div class="source-details">
+                            <a href="${source.source}" target="_blank" rel="noopener noreferrer" class="source-link">
+                                ${displayName}
+                                <span class="source-link-icon">↗</span>
+                            </a>
+                            <a href="${source.source}" target="_blank" rel="noopener noreferrer" class="source-url">${fullPath}</a>
+                        </div>
+                        <span class="source-relevance" title="Relevance score">${relevance}%</span>
+                    `;
+                } else {
+                    // Local source - show path
+                    sourceItem.innerHTML = `
+                        <span class="source-emoji">${emoji}</span>
+                        <div class="source-details">
+                            <div class="source-name">${displayName}</div>
+                            <div class="source-path" title="${fullPath}">${fullPath}</div>
+                        </div>
+                        <span class="source-relevance" title="Relevance score">${relevance}%</span>
+                    `;
+                }
 
                 sourcesListDiv.appendChild(sourceItem);
             });

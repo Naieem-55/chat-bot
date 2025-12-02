@@ -19,7 +19,7 @@ if not exist data\vector_store\index.faiss (
     pause
     exit /b 1
 )
-echo    Found: 171 documents
+echo    Found vector store!
 echo.
 
 REM Start backend
@@ -39,21 +39,16 @@ echo    Frontend started!
 echo.
 
 echo ====================================
-echo ✅ All servers running!
+echo All servers running!
 echo ====================================
 echo.
-echo 📍 Access Points:
+echo Access Points:
 echo    Main Chat:     http://localhost:3001/
 echo    Documents:     http://localhost:3001/documents.html
 echo    Analytics:     http://localhost:3001/analytics.html
 echo    API Backend:   http://localhost:8002
 echo    API Docs:      http://localhost:8002/docs
 echo.
-echo 💡 Features:
-echo    • Document Management System
-echo    • Smart Suggestions
-echo    • Hallucination Detection
-echo    • Real-time Analytics
-echo.
 echo To stop: Close the Backend and Frontend terminal windows
 echo ====================================
+pause

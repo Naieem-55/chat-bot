@@ -75,6 +75,7 @@ class ChatResponse(BaseModel):
     reformulated_query: Optional[str] = None
     memory_used: Optional[bool] = None
     memory_stats: Optional[Dict[str, int]] = None
+    web_search_used: Optional[bool] = None
 
 
 class SessionCreateResponse(BaseModel):
