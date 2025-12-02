@@ -145,9 +145,14 @@ function addUserMessage(message) {
 }
 
 // Add bot message to chat (with streaming support)
-function addBotMessage(message, sources = null, messageId = null, messageData = null, hallucinationRisk = null, reformulatedQuery = null, streaming = false) {
+function addBotMessage(message, sources = null, messageId = null, messageData = null, hallucinationRisk = null, reformulatedQuery = null, streaming = false, languageInfo = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
+
+    // Add RTL class for right-to-left languages
+    if (languageInfo && languageInfo.is_rtl) {
+        messageDiv.classList.add('rtl-text');
+    }
 
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
@@ -158,6 +163,18 @@ function addBotMessage(message, sources = null, messageId = null, messageData = 
     }
 
     messageDiv.appendChild(contentDiv);
+
+    // Add language indicator if not English
+    if (languageInfo && languageInfo.code !== 'en' && languageInfo.confidence > 0.5) {
+        const langDiv = document.createElement('div');
+        langDiv.className = 'language-indicator';
+        langDiv.innerHTML = `
+            <span class="lang-badge" title="Detected language: ${languageInfo.name}">
+                🌐 ${languageInfo.name}
+            </span>
+        `;
+        messageDiv.insertBefore(langDiv, messageDiv.firstChild);
+    }
 
     // Add query reformulation notice if query was reformulated
     if (reformulatedQuery) {
@@ -951,6 +968,23 @@ async function sendMessage() {
                 🔄 <small>Interpreted as: "${data.reformulated_query}"</small>
             `;
             messageDiv.insertBefore(reformulationDiv, contentDiv);
+        }
+
+        // Add language indicator if not English
+        if (data.language && data.language.code !== 'en' && data.language.confidence > 0.5) {
+            const langDiv = document.createElement('div');
+            langDiv.className = 'language-indicator';
+            langDiv.innerHTML = `
+                <span class="lang-badge" title="Detected language: ${data.language.name}">
+                    🌐 ${data.language.name}
+                </span>
+            `;
+            messageDiv.insertBefore(langDiv, contentDiv);
+
+            // Add RTL class for right-to-left languages
+            if (data.language.is_rtl) {
+                messageDiv.classList.add('rtl-text');
+            }
         }
 
         // Add context-based emojis to response

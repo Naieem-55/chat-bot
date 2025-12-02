@@ -470,6 +470,37 @@ body {
     color: #2980b9;
 }
 
+/* Language indicator */
+.language-indicator {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 8px;
+    padding: 6px 12px;
+    margin-bottom: 10px;
+    display: inline-block;
+}
+
+.lang-badge {
+    color: #6366f1;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* RTL (Right-to-Left) text support */
+.rtl-text .message-content {
+    direction: rtl;
+    text-align: right;
+}
+
+.rtl-text .message-content code,
+.rtl-text .message-content pre {
+    direction: ltr;
+    text-align: left;
+}
+
 .chat-input-container {
     display: flex;
     padding: 20px 24px;

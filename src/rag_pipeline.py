@@ -10,6 +10,7 @@ from .llm.huggingface_client import HuggingFaceClient, PromptTemplate
 from .session.session_manager import SessionManager
 from .query.query_reformulator import QueryReformulator, HybridRetrieval
 from .memory.memory_manager import MemoryManager
+from .utils.language_detector import detect_and_get_instruction, language_detector
 
 logger = logging.getLogger(__name__)
 
@@ -144,38 +145,53 @@ class RAGPipeline:
             context = self.retriever.format_context(retrieval_results)
             memory_used = False
 
-        # Step 5: Build messages for LLM (use original query for response)
+        # Step 5: Detect language of user query
+        lang_code, lang_instruction, language_info = detect_and_get_instruction(query)
+        logger.info(f"Detected language: {language_info['name']} ({lang_code}) - confidence: {language_info['confidence']}")
+
+        # Step 6: Build messages for LLM (use original query for response)
         messages = self._build_messages(query, context, history)
 
-        # Step 6: Generate response
+        # Step 7: Generate response with language-aware system prompt
+        # Add language instruction to system prompt if not English
+        system_prompt = PromptTemplate.SYSTEM_PROMPT
+        if lang_code != 'en' and language_info['confidence'] > 0.5:
+            system_prompt = f"{PromptTemplate.SYSTEM_PROMPT}\n\n{lang_instruction}"
+
         if stream:
             response_text = self._generate_streaming_response(messages)
         else:
             response_text = self.claude_client.generate_response(
-                system_prompt=PromptTemplate.SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 messages=messages,
                 stream=False
             )
 
-        # Step 7: Save to session history
+        # Step 8: Save to session history
         self.session_manager.add_message(session_id, 'user', query)
         if not stream:  # For streaming, this happens after full response
             self.session_manager.add_message(session_id, 'assistant', response_text)
 
-        # Step 8: Extract and store facts from conversation (if long-term memory enabled)
+        # Step 9: Extract and store facts from conversation (if long-term memory enabled)
         if self.use_long_term_memory and self.memory_manager and not stream:
             facts = self.memory_manager.extract_facts_from_conversation(query, response_text)
             for fact in facts:
                 self.memory_manager.store_user_fact(session_id, fact, category="conversation")
 
-        # Step 9: Prepare response
+        # Step 10: Prepare response
         retrieval_metadata = self.retriever.get_retrieval_metadata(retrieval_results)
 
         response_data = {
             'response': response_text,
             'session_id': session_id,
             'sources': retrieval_metadata,
-            'context_used': len(retrieval_results) > 0
+            'context_used': len(retrieval_results) > 0,
+            'language': {
+                'code': language_info['code'],
+                'name': language_info['name'],
+                'confidence': language_info['confidence'],
+                'is_rtl': language_info['is_rtl']
+            }
         }
 
         # Add reformulation info if used
